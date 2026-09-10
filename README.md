@@ -6,6 +6,7 @@
 
 ```text
 2026GS/
+├── MODELING_PLAN.md  # C 题建模方案、难点与团队分工
 ├── TEAM_GIT_GUIDE.md # 团队 Git、SSH 与分支协作手册
 ├── problems/      # 竞赛题目、数据附件与结果模板
 ├── src/tex/       # CUMCM LaTeX 模板、样例与样式文件
@@ -16,6 +17,8 @@
 ## 团队协作
 
 团队采用 `cmx`、`xtc`、`lcy` 三个个人分支开发，稳定内容最终合并到 `main`。首次配置 GitHub SSH、下载仓库、日常提交和处理冲突的方法见 [`TEAM_GIT_GUIDE.md`](TEAM_GIT_GUIDE.md)。
+
+当前选定 C 题，统一数学模型、四问依赖关系、强化学习路线、难点和分工见 [`MODELING_PLAN.md`](MODELING_PLAN.md)。
 
 ## 快速开始
 
