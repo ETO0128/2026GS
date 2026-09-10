@@ -1,0 +1,6 @@
+# Local working files
+tmp/
+
+# Microsoft Office temporary lock files
+~$*
+**/~$*
