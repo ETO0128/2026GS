@@ -4,3 +4,24 @@ tmp/
 # Microsoft Office temporary lock files
 ~$*
 **/~$*
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Jupyter temporary data
+.ipynb_checkpoints/
+
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
