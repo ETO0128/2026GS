@@ -1,0 +1,201 @@
+% 2026 年全国大学生数学建模竞赛 C 题论文
+% 正式提交电子版使用 withoutpreface；如需检查封面，可改为 \documentclass{cumcmthesis}。
+\documentclass[withoutpreface,bwprint]{cumcmthesis}
+
+\usepackage{cumcm2026}
+
+% 图片统一存放在当前 LaTeX 工程的 figure 文件夹。
+\graphicspath{{figure/}}
+
+% ==================== 论文与队伍信息 ====================
+\title{微网与外部电网电力调控策略}
+\tihao{C}
+\baominghao{待填写}
+\schoolname{待填写}
+\membera{cmx}
+\memberb{xtc}
+\memberc{lcy}
+\supervisor{待填写}
+\yearinput{2026}
+\monthinput{9}
+\dayinput{待填写}
+% ========================================================
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+% TODO：概述问题背景、主要模型、求解方法、关键结果和结论。
+
+\keywords{微网调度\quad 储能系统\quad 滚动优化\quad 强化学习\quad 不确定性}
+\end{abstract}
+
+% 竞赛论文通常不需要目录，写作阶段如需检查结构可临时取消下一行注释。
+% \tableofcontents
+% \newpage
+
+\section{问题重述}
+
+% TODO：用自己的语言简洁重述四个问题，不照抄题面。
+
+\section{问题分析}
+
+\subsection{问题一分析}
+
+% TODO：确定性单日购电与储能调度。
+
+\subsection{问题二分析}
+
+% TODO：预测误差、储能安全余量和紧急购电。
+
+\subsection{问题三分析}
+
+% TODO：多时刻光伏预测、滚动优化和购电计划调整。
+
+\subsection{问题四分析}
+
+% TODO：波动电价下对问题二和问题三的扩展。
+
+\section{模型假设}
+
+\begin{enumerate}
+  \item % TODO：填写模型假设，并逐项说明合理性。
+\end{enumerate}
+
+\section{符号说明}
+
+\begin{table}[H]
+  \centering
+  \caption{主要符号说明}
+  \label{tab:symbols}
+  \begin{tabularx}{\textwidth}{C{0.18\textwidth} L L}
+    \toprule
+    符号 & 含义 & 单位 \\
+    \midrule
+    $t$ & 十分钟决策时段索引 & -- \\
+    $g_t$ & 外部电网计划购电量 & \si{kWh} \\
+    $c_t$ & 储能充电量 & \si{kWh} \\
+    $d_t$ & 储能放电量 & \si{kWh} \\
+    $e_t$ & 储能系统的储电量 & \si{kWh} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{数据预处理与预测方法}
+
+\subsection{时间索引与单位换算}
+
+% TODO：说明十分钟时段、跨日时间标签以及 kW 到 kWh 的换算。
+
+\subsection{负荷与光伏预测}
+
+% TODO：说明因果数据划分、预测模型和误差评价。
+
+\subsection{电价数据处理}
+
+% TODO：说明固定电价与波动电价的处理方式。
+
+\section{问题一的确定性优化模型}
+
+\subsection{模型建立}
+
+% TODO：给出能量平衡、储能状态转移和边界约束。
+
+\subsection{求解方法}
+
+% TODO：说明线性规划或混合整数线性规划的求解过程。
+
+\subsection{结果与分析}
+
+% TODO：填写 result1.xlsx，并分析购电、充放电和储电量变化。
+
+\section{问题二的预测误差调度模型}
+
+\subsection{日前计划与紧急购电机制}
+
+% TODO：定义计划购电、实际供需缺口和五倍价格紧急购电。
+
+\subsection{优化与控制策略}
+
+% TODO：说明预测模型、基准优化器以及强化学习修正策略。
+
+\subsection{结果与分析}
+
+% TODO：填写 result2.xlsx，统计正常购电、紧急购电和总费用。
+
+\section{问题三的滚动调整模型}
+
+\subsection{多时刻光伏预测更新}
+
+% TODO：说明 0、6、12、18 点预测的对齐和十分钟插值。
+
+\subsection{滚动优化与调整费用}
+
+% TODO：说明向上调整、向下调整和紧急购电的费用口径。
+
+\subsection{预测更新频率分析}
+
+% TODO：比较不同更新间隔的成本、收益和计算时间。
+
+\subsection{结果与分析}
+
+% TODO：填写 result3.xlsx，并分析滚动调整的价值。
+
+\section{问题四的波动电价模型}
+
+\subsection{波动电价下的问题二}
+
+% TODO：生成 result4-2.xlsx，并与固定电价结果比较。
+
+\subsection{波动电价下的问题三}
+
+% TODO：生成 result4-3.xlsx，并与固定电价结果比较。
+
+\subsection{结果对比}
+
+% TODO：讨论价格预测、负荷预测和光伏预测共同不确定时的策略表现。
+
+\section{模型评价与敏感性分析}
+
+\subsection{方法对比与消融实验}
+
+% TODO：比较规则策略、线性规划、滚动优化、纯强化学习和混合策略。
+
+\subsection{敏感性分析}
+
+% TODO：分析预测误差、储能容量、功率、效率和初始电量的影响。
+
+\subsection{模型优缺点}
+
+% TODO：总结模型的适用条件、优势和局限。
+
+\section{结论}
+
+% TODO：逐问总结主要结论，并给出可执行的微网调度建议。
+
+% 2026 年竞赛要求在参考文献之前声明 AI 工具使用情况。
+\CumcmAIUsed{资料整理、思路讨论、代码调试和语言润色}
+
+\begin{thebibliography}{99}
+  % \bibitem{reference-key} 作者. 文献题目[J]. 期刊, 年份, 卷(期): 页码.
+\end{thebibliography}
+
+\newpage
+\begin{appendices}
+
+\section{主要程序代码}
+
+% TODO：放置关键算法代码或说明完整代码所在的支撑材料文件。
+
+\section{补充结果}
+
+% TODO：放置正文中不便展开的表格、图形和验证结果。
+
+\section{AI 工具使用详情索引}
+
+% TODO：按照竞赛要求另行生成“AI工具使用详情.pdf”，此处列出对应材料索引。
+
+\end{appendices}
+
+\end{document}

@@ -9,8 +9,8 @@
 ├── MODELING_PLAN.md  # C 题建模方案、难点与团队分工
 ├── TEAM_GIT_GUIDE.md # 团队 Git、SSH 与分支协作手册
 ├── problems/      # 竞赛题目、数据附件与结果模板
-├── src/tex/       # CUMCM LaTeX 模板、样例与样式文件
-├── figures/       # 项目图片与绘图资源
+├── src/tex/       # 正式论文、LaTeX 模板和样式文件
+│   └── figure/    # 论文图片与绘图资源
 └── example.pdf    # 模板编译效果示例
 ```
 
@@ -20,17 +20,13 @@
 
 当前选定 C 题，统一数学模型、四问依赖关系、强化学习路线、难点和分工见 [`MODELING_PLAN.md`](MODELING_PLAN.md)。
 
-## 快速开始
+## 论文写作与编译
 
-1. 安装较新的 TeX Live 或 MiKTeX，并确保中文字体与常用 LaTeX 宏包可用。
-2. 进入 `src/tex` 目录，以 `example.tex` 为入口开始编辑论文。
-3. 推荐使用 XeLaTeX 编译：
-
-   ```bash
-   xelatex example.tex
-   ```
-
-4. 根据当年竞赛官方要求检查封面、编号页、承诺书及 AI 工具使用声明等内容，确认无误后再生成最终 PDF。
+- 正式论文统一在 [`src/tex/main.tex`](src/tex/main.tex) 中编写。
+- 论文图片统一放入 `src/tex/figure/`，在正文中直接按文件名引用。
+- `src/tex/example.tex` 仅作为模板用法参考，不在其中撰写正式论文。
+- 不在本地编译 LaTeX。团队统一在[上海交通大学 LaTeX 平台](https://latex.sjtu.edu.cn/project/6aa2629ebd92933f73a45794)上传和编译 `src/tex` 工程。
+- 编译前后根据当年竞赛官方要求检查封面、编号页、承诺书及 AI 工具使用声明等内容。
 
 模板的详细说明与更新记录见 [`src/tex/README.md`](src/tex/README.md)。
 
@@ -46,7 +42,7 @@
 
 - 竞赛格式和提交要求以 2026 年官方通知为准。
 - 请勿将报名号、队员个人信息、账号凭据或未脱敏的敏感数据提交到公开仓库。
-- 建议在正式写作前先验证本地环境能够完整编译模板。
+- 向在线平台同步时，应同时上传 `main.tex`、`cumcmthesis.cls`、`cumcm2026.sty` 和 `figure/` 中使用的图片。
 
 ## License
 

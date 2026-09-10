@@ -25,3 +25,7 @@ venv/
 *.out
 *.synctex.gz
 *.toc
+*.xdv
+
+# Locally compiled competition paper
+src/tex/main.pdf
