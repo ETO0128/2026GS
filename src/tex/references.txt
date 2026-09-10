@@ -1,0 +1,90 @@
+C 题建模依据与参考文献（IEEE 格式）
+更新日期：2026-09-10
+
+一、参数与公式的来源说明
+
+1. 直接来自题目的参数
+   储能额定容量 12000 kWh、最大充放电功率 5000 kW、充电效率 0.90、
+   放电效率 0.90、初始储电量 6000 kWh、允许储电范围 1200--10800 kWh，
+   均应引用题目 [1]，不能写成由文献查得或通过数据拟合得到。
+
+2. 由题目参数和单位换算得到的量
+   时间步长：Delta t = 10/60 = 1/6 h。
+   单时段最大充电量或放电量：5000 kW * (1/6 h) = 833.333 kWh。
+   往返效率：eta_rt = eta_c * eta_d = 0.90 * 0.90 = 0.81。
+
+   因此，0.81 不是另行选取的经验常数，而是题目给出的两个单向效率的乘积。
+   NREL 将往返效率定义为“可用输出能量与输入能量之比”[3]；按能量链逐段计算时，
+   充电和放电两个环节的效率相乘。文献 [2] 可用于说明功率 kW 与能量 kWh 的区别，
+   文献 [4] 给出了含充放电效率的离散 SOC 状态方程实例。
+
+3. 当前变量定义下的储能状态方程
+   若 c_t 和 d_t 均定义为交流母线侧电量，则
+
+       e_(t+1) = e_t + eta_c * c_t - d_t / eta_d.
+
+   这里充电进入电池前乘 eta_c，电池为了向母线输出 d_t 需要消耗 d_t/eta_d。
+   该效率放置方式与文献 [4] 的储能状态方程一致。若以后把 c_t、d_t 改为电池侧量，
+   方程也必须同步改变，不能重复计算效率。
+
+4. 属于建模选择、不是题目常数的内容
+   日末 SOC 条件、弃光惩罚、电池退化成本、同时充放电互斥方式、安全储备比例、
+   强化学习奖励权重和网络超参数都属于建模选择，需要通过机理分析、对照实验或
+   灵敏度分析说明。文献 [4] 通过很小的放电成本避免同时充放电；若本题线性模型
+   出现同时充放电，也可以增加二进制互斥变量并改用 MILP。文献 [5]--[7] 可支撑
+   线性/混合整数优化与 MPC 基线，文献 [8]--[10] 可支撑后续强化学习和 SAC 方案。
+
+二、参考文献
+
+[1] 全国大学生数学建模竞赛组织委员会, “C 题：微网与外部电网电力调控策略,”
+    2026 年高教社杯全国大学生数学建模竞赛赛题, 2026. [本地文件]:
+    problems/C题/C题.pdf.
+
+[2] P. Joshi and C. Gokhale-Welch, “Fundamentals of Energy Storage,” National
+    Renewable Energy Laboratory, Golden, CO, USA, NREL/TP-6A40-84500,
+    Nov. 2022. [Online]. Available: https://www.nrel.gov/docs/fy23osti/84500.pdf
+    [Accessed: Sep. 10, 2026].
+
+[3] National Renewable Energy Laboratory, “Utility-Scale Battery Storage,”
+    2023 Annual Technology Baseline, 2023. [Online]. Available:
+    https://atb.nrel.gov/electricity/2023/residential_battery_storage/utility-scale_battery_storage
+    [Accessed: Sep. 10, 2026].
+
+[4] W. Gorman, G. Barbose, C. Miller, P. White, J. P. Carvallo, and S. Baik,
+    “Evaluating the potential for solar-plus-storage backup power in the United
+    States as homes integrate efficient, flexible, and electrified energy
+    technologies,” Energy, vol. 304, Art. no. 132180, 2024,
+    doi: 10.1016/j.energy.2024.132180.
+
+[5] A. Parisio, E. Rikos, G. Tzamalis, and L. Glielmo, “Use of model predictive
+    control for experimental microgrid optimization,” Applied Energy, vol. 115,
+    pp. 37--46, Feb. 2014, doi: 10.1016/j.apenergy.2013.10.027.
+
+[6] J. Hu, Y. Xu, K. W. Cheng, and J. M. Guerrero, “A model predictive control
+    strategy of PV-battery microgrid under variable power generations and load
+    conditions,” Applied Energy, vol. 221, pp. 195--203, Jul. 2018,
+    doi: 10.1016/j.apenergy.2018.03.085.
+
+[7] S. Boyd and L. Vandenberghe, Convex Optimization. Cambridge, U.K.:
+    Cambridge University Press, 2004. [Online]. Available:
+    https://web.stanford.edu/~boyd/cvxbook/
+    [Accessed: Sep. 10, 2026].
+
+[8] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft actor-critic:
+    Off-policy maximum entropy deep reinforcement learning with a stochastic
+    actor,” in Proc. 35th Int. Conf. Machine Learning (ICML), vol. 80,
+    pp. 1861--1870, 2018. [Online]. Available:
+    https://proceedings.mlr.press/v80/haarnoja18b.html
+    [Accessed: Sep. 10, 2026].
+
+[9] N. Ruan, Y. Xu, W. K. Chan, and Z. Wei, “Real-time energy management of a
+    low-carbon micro-grid based on deep reinforcement learning,” in Proc. 2022
+    IEEE/IAS Industrial and Commercial Power System Asia (I&CPS Asia),
+    Shanghai, China, 2022, pp. 1102--1107,
+    doi: 10.1109/ICPSAsia55496.2022.9949732.
+
+[10] T. Levent, P. Preux, E. Le Pennec, J. Badosa, G. Henri, and Y. Bonnassieux,
+     “Energy management for microgrids: A reinforcement learning approach,”
+     in Proc. 2019 IEEE PES Innovative Smart Grid Technologies Europe
+     (ISGT-Europe), Bucharest, Romania, 2019, pp. 1--5,
+     doi: 10.1109/ISGTEurope.2019.8905538.
