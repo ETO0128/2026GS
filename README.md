@@ -20,6 +20,24 @@
 
 当前选定 C 题，统一数学模型、四问依赖关系、强化学习路线、难点和分工见 [`MODELING_PLAN.md`](MODELING_PLAN.md)。
 
+## 问题跟踪
+
+题意歧义、数据异常、模型假设、程序错误、公共接口和论文待办等需要全队关注的事项，统一使用 [GitHub Issues](https://github.com/ETO0128/2026GS/issues) 记录。Issue 属于 GitHub 仓库功能，不能通过普通的本地 `git commit` 创建。
+
+最简单的创建方式是在仓库网站进入 `Issues`，点击 `New issue`，写清问题、影响范围、当前判断和需要采取的下一步操作。不要在 Issue 中发布密码、SSH 私钥、Token、手机号或其他敏感信息。
+
+已经安装并登录 GitHub CLI 的队员也可以在本地终端创建：
+
+```powershell
+gh issue create
+```
+
+提交或 Pull Request 可以使用 `#编号` 关联 Issue；若合并后应自动关闭该问题，在 Pull Request 描述中写：
+
+```text
+Closes #编号
+```
+
 ## 论文写作与编译
 
 - 正式论文统一在 [`src/tex/main.tex`](src/tex/main.tex) 中编写。
