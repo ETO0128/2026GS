@@ -683,6 +683,14 @@ $e_{144}=e_0=\SI{6000}{kWh}$，属于滚动时域（rolling horizon）优化的�
 $13m$ 个变量、$9m$ 条约束（$m=144-\tau/10$ 为剩余时段数，场景数取 6），最大规模约
 1900 个变量、1300 条约束，用 HiGHS 求解，单日四次求解共计约 \SI{0.4}{s}。
 
+上述结构具有明确的随机优化依据。Silvente 等将微网调度写成滚动时域随机规划：随着预测
+信息更新，冻结已执行决策并重复求解剩余时域，从而兼顾事前计划与事后响应
+\cite{silvente2015}。两阶段随机规划要求同一场景内的多时段误差保持联合结构，而不能把
+各时段边际误差任意拼接\cite{birge2011}；因此本文保留历史负荷--光伏残差的连续轨迹。
+Ghadimi 和 Powell 进一步指出，储能策略不仅取决于某一次预测误差，还取决于预测在后续
+节点如何演化，并建议在能够重现滚动预测更新的仿真器中评价参数化策略
+\cite{ghadimi2024}。这为本文比较固定调整、择优调整及节点组合提供了理论基础。
+
 需要区分两种决策规则：\textbf{固定调整}在每个节点都采用重优化结果；\textbf{择优调整}
 只在重优化确实降低期望费用（$J_{\mathrm{adj}}<J_{\mathrm{keep}}$）时才采用，把式
 \eqref{eq:q3-fee} 的非对称代价与预报误差一并考虑在内。
@@ -753,6 +761,18 @@ $13m$ 个变量、$9m$ 条约束（$m=144-\tau/10$ 为剩余时段数，场景�
 式~\eqref{eq:q3-saving} 的含义是“多花 5.2 万元调整费、换回 29.1 万元紧急购电费”。
 固定调整之所以不如择优调整，是因为它把 404 次“越调越贵”的调整也一并执行了
 （多付出 4.2 万元调整费），这正是式~\eqref{eq:q3-fee} 非对称代价的直接后果。
+
+图~\ref{fig:q3-strategy-comparison} 从费用构成与节点边际价值两个角度给出对照。滚动策略
+增加了少量合同调整费用，却显著压低五倍价紧急购电；新增信息的收益主要集中在 6:00 和
+12:00，18:00 的边际贡献在图中已接近于零。该结果说明，预测发布频率并非越高越好，
+有效节点必须同时具备足够长的剩余执行时域和仍未结束的光伏出力窗口。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.96\textwidth]{figures/q3_strategy_comparison.pdf}
+  \caption{问题三滚动调整策略的全年费用构成与预测节点边际价值比较}
+  \label{fig:q3-strategy-comparison}
+\end{figure}
 
 \input{q3_tables}
 
@@ -892,7 +912,19 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
 
 \subsection{方法对比与消融实验}
 
-% TODO：比较规则策略、线性规划、滚动优化、纯强化学习和混合策略。
+本文进一步检验“上层学习策略 $+$ 下层安全优化”的可行性。问题 4-2 中，上层 Q-learning
+只在 \SIlist{3600;4800;6000;7200;8400}{kWh} 中选择次日目标 SOC，下层线性规划生成完整
+调度；问题 4-3 中，上层拟合 Q 近似只选择 EVSI 调整阈值
+$\{0,100,300,600\}$ 元，下层仍由滚动 LP 决定具体购电与储能动作。因而无论学习结果如何，
+能量平衡、SOC 与功率边界都不会被破坏。
+
+采用 1--6 月训练、9--12 月冻结测试后，问题 4-2 的五随机种子学习策略平均费用为
+\num{6510305.29} 元，标准差 \num{3199.38} 元，比最优固定 SOC 高 \num{5450.81} 元；
+问题 4-3 的学习策略费用为 \num{6159389.41} 元，也比最优固定阈值 300 元高
+\num{1711.97} 元。两项差距虽均不足 0.1\%，但没有证据支持学习策略优于固定参数。
+因此本文把 RL 作为安全分层接口与消融实验，如实保留其负结果；正式结果仍采用可解释、
+样本外表现更好的滚动线性规划。该结论也与滚动预测储能研究所强调的“必须在完整预测更新
+仿真器中检验参数策略”一致\cite{ghadimi2024}。
 
 \subsection{敏感性分析}
 
@@ -952,6 +984,14 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
   \bibitem{parisio2014} A. Parisio, E. Rikos, G. Tzamalis, et al. Use of model
   predictive control for experimental microgrid optimization[J]. Applied Energy,
   2014, 115: 37--46.
+
+  \bibitem{silvente2015} J. Silvente, G. M. Kopanos, E. N. Pistikopoulos, et al.
+  A rolling horizon optimization framework for the simultaneous energy supply
+  and demand planning in microgrids[J]. Applied Energy, 2015, 155: 485--501.
+
+  \bibitem{ghadimi2024} S. Ghadimi and W. B. Powell. Stochastic search for a
+  parametric cost function approximation: Energy storage with rolling forecasts[J].
+  European Journal of Operational Research, 2024, 312(2): 641--652.
 
   \bibitem{boyd2004} S. Boyd and L. Vandenberghe. Convex Optimization[M].
   Cambridge: Cambridge University Press, 2004.
