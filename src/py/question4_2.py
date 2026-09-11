@@ -12,7 +12,8 @@ import numpy as np
 
 from question1 import load_question1_data
 from question2_data import ColdStartForecast, YearData, load_cold_start_forecast
-from question2_forecast import ForecastConfig, ForecastResult, forecast_day
+from question2_forecast import (ForecastConfig, ForecastResult,
+                                apply_conditional_residual_quantile, forecast_day)
 from question4_2_data import Question42Data, load_question42_data, summarize_prices
 from question4_2_dispatch import (
     PerfectInformationResult,
@@ -37,7 +38,7 @@ OFFICIAL_START = date(2025, 2, 1)
 
 @dataclass(frozen=True)
 class Question42Config:
-    source_forecast: ForecastConfig = ForecastConfig(method="seven_day", planning_method="historical_net")
+    source_forecast: ForecastConfig = ForecastConfig(method="seven_day", planning_method="conditional_residual")
     price_forecast: PriceForecastConfig = PriceForecastConfig(method="seven_day")
     reserve_kwh: float = 6000.0
     emergency_multiplier: float = 5.0
@@ -86,7 +87,7 @@ def _cold_start_price_result(
 def _evaluate(days: tuple[Question42DailyRecord, ...]) -> dict[str, float | int]:
     if not days:
         raise ValueError("Question 4-2 evaluation requires at least one day")
-    price_days = days[1:]
+    price_days = tuple(day for day in days if day.price_forecast.history_end_date is not None)
     if price_days:
         actual_prices = np.stack([day.execution.actual_price_yuan_per_kwh for day in price_days])
         predicted_prices = np.stack([day.price_forecast.price_yuan_per_kwh for day in price_days])
@@ -135,6 +136,9 @@ def run_question42_baseline(
     )
     carried_soc = INITIAL_SOC_KWH
     records: list[Question42DailyRecord] = []
+    history_dates: list[date] = []
+    history_point_net: list[np.ndarray] = []
+    history_net_residual: list[np.ndarray] = []
     for index in range(total_days):
         run_date = data.dates[index]
         source_forecast = forecast_day(
@@ -144,6 +148,13 @@ def run_question42_baseline(
             cold_start_load_kw=cold_start.load_kw,
             cold_start_pv_kw=cold_start.pv_kw,
         )
+        point_net = source_forecast.load_kw - source_forecast.pv_kw
+        if config.source_forecast.planning_method == "conditional_residual" and history_dates:
+            source_forecast = apply_conditional_residual_quantile(
+                source_forecast, run_date, tuple(history_dates),
+                np.stack(history_point_net), np.stack(history_net_residual),
+                config.source_forecast,
+            )
         if index == 0:
             price_result = _cold_start_price_result(run_date, cold_start_price_yuan_per_kwh)
         else:
@@ -180,6 +191,9 @@ def run_question42_baseline(
             perfect_information=perfect,
             dispatch_regret_yuan=regret,
         ))
+        history_dates.append(run_date)
+        history_point_net.append(point_net.copy())
+        history_net_residual.append(data.load_kw[index] - data.pv_kw[index] - point_net)
         carried_soc = float(execution.soc_kwh[-1])
     completed = tuple(records)
     return Question42YearResult(completed, _evaluate(completed))
@@ -221,7 +235,7 @@ def main() -> None:
     )
     print(json.dumps({
         "price_source": summarize_prices(data),
-        "baseline": result.metrics,
+        "baseline": _evaluate(result.official_days) if result.official_days else result.metrics,
     }, ensure_ascii=False, indent=2))
 
 

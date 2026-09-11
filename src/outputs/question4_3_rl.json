@@ -1,0 +1,18 @@
+{
+  "method": "ridge fitted-Q high-level EVSI threshold",
+  "split": "train Feb-Jun; frozen test Sep-Dec",
+  "fixed_threshold_cost_yuan": {
+    "0": 6159389.410530883,
+    "100": 6158852.148116407,
+    "300": 6157677.442451799,
+    "600": 6167538.701718856
+  },
+  "learned_cost_yuan": 6159389.410530883,
+  "learned_action_counts": [
+    122,
+    0,
+    0,
+    0
+  ],
+  "gain_vs_best_fixed_yuan": -1711.9680790835992
+}
