@@ -1,15 +1,18 @@
 """生成论文需要的问题三结果表。
 
 数据来源全部是代码产物，不手抄：
-    src/outputs/q3_summary.json   由 run_q3.py 生成（三策略全年对比、节点边际价值、节点累积实验）
-    src/outputs/q3_upper.json     由 run_q3_upper.py 生成（引入其他时刻预报的价值上界）
-    src/py/q3_model.simulate_day  指定日期结果现算（4 天，秒级）
+    src/outputs/q3_summary.json             由 run_q3.py 生成
+    src/outputs/q3_upper.json               由 run_q3_upper.py 生成
+    src/outputs/q3_hybrid_experiment.json   由 q3_hybrid_experiment.py 生成（双层方案）
+    src/outputs/q3_improvement_full.json    由 q3_improvement_experiment.py 生成（消融/稳健性）
+    src/py/q3_model.simulate_day            指定日期结果现算（4 天，秒级）
 
 运行：
-    python src/py/make_q3_tables.py            # 先确保上面两个 json 已存在
+    python src/py/make_q3_tables.py
 输出：
-    src/tex/q3_tables.tex        论文用 LaTeX 表格（main.tex 中 \\input{q3_tables} 引入）
-    src/outputs/q3_tables.txt    纯文本版，便于核对
+    src/tex/q3_tables.tex         论文用 LaTeX 表格（main.tex 中 \\input{q3_tables} 引入）
+    src/tex/q3_bridge_tables.tex  双层方案表与消融表（\\input{q3_bridge_tables} 引入）
+    src/outputs/q3_tables.txt     纯文本版，便于核对
 """
 from __future__ import annotations
 
@@ -32,6 +35,12 @@ POLICY_CN = {"none": "仅 0:00 计划", "fixed": "每节点固定调整", "selec
 
 def fmt(x: float, dec: int = DEC) -> str:
     return f"{x:,.{dec}f}"
+
+
+def fmt_ci(x: float) -> str:
+    """区间端点：用 {,} 保护千分位逗号，避免 LaTeX 把它当成数学模式的数字。"""
+    s = f"{x:,.2f}"
+    return s.replace(",", "{,}")
 
 
 def pct(x: float) -> str:
@@ -147,11 +156,72 @@ def tex_dates(rows: list[dict], policy: str) -> str:
     return "\n".join(out)
 
 
+def tex_bridge(hybrid: dict) -> str:
+    """双层方案：问题二合同 + 问题三滚动（严格递进）与 0:00 联合优化。"""
+    q2n = hybrid["q2_no_adjust"]
+    strict = hybrid["q2_contract_plus_lcy_rolling"]
+    joint = hybrid["lcy_baseline"]
+    b1 = hybrid["bootstrap_hybrid_vs_q2"]["ci95_yuan"]
+    b2 = hybrid["bootstrap_lcy_vs_hybrid"]["ci95_yuan"]
+    out = [r"\begin{table}[H]", r"  \centering",
+           r"  \caption{问题三与问题二的衔接：两种信息边界下的全年结果（334 天）}",
+           r"  \label{tab:q3-bridge}", r"  \small",
+           r"  \begin{tabular}{llrrrr}", r"    \toprule",
+           r"    方案 & 0:00 计划来源 & 全年费用/元 & 紧急购电量/kWh & 相对上一行节省/元 & 节省 95\% 区间/元 \\",
+           r"    \midrule"]
+    out.append(f"    问题二方案（不调整） & 问题二日前计划 & {fmt(q2n['total_yuan'], 2)} & "
+               f"{fmt(q2n['emergency_kwh'], 2)} & -- & -- \\\\")
+    out.append(f"    严格递进方案 & 沿用问题二合同 & {fmt(strict['total_yuan'], 2)} & "
+               f"{fmt(strict['emergency_kwh'], 2)} & {fmt(hybrid['hybrid_saving_vs_q2_yuan'], 2)} & "
+               f"$[{fmt_ci(b1[0])},\\;{fmt_ci(b1[1])}]$ \\\\")
+    out.append(f"    \\textbf{{联合方案（正式结果）}} & 0:00 联合优化 & "
+               f"{fmt(joint['total_yuan'], 2)} & {fmt(joint['emergency_kwh'], 2)} & "
+               f"{fmt(hybrid['hybrid_difference_vs_lcy_yuan'], 2)} & "
+               f"$[{fmt_ci(b2[0])},\\;{fmt_ci(b2[1])}]$ \\\\")
+    out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    return "\n".join(out)
+
+
+ABLATION_CN = {
+    "legacy_reproduction": "基准（本文方案）",
+    "official_forecast_only": "换成问题二正式七日均值负荷预测",
+    "plus_pv_interpolation": "七日均值 + 光伏线性插值",
+    "plus_weighted_scenarios": "七日均值 + 插值 + 时间衰减场景",
+    "legacy_plus_interpolation": "本文预测 + 光伏线性插值",
+    "legacy_plus_weighted_scenarios": "本文预测 + 时间衰减场景",
+    "legacy_plus_both": "本文预测 + 插值 + 时间衰减场景",
+}
+ABLATION_ORDER = ["legacy_reproduction", "official_forecast_only", "plus_pv_interpolation",
+                  "plus_weighted_scenarios", "legacy_plus_interpolation",
+                  "legacy_plus_weighted_scenarios", "legacy_plus_both"]
+
+
+def tex_ablation(improve: dict) -> str:
+    """消融/稳健性：负荷预测口径、光伏插值、场景权重。"""
+    v = improve["variants"]
+    base = v["legacy_reproduction"]["total_yuan"]
+    out = [r"\begin{table}[H]", r"  \centering",
+           r"  \caption{问题三消融实验（全年 334 天，锁定区间）：负荷预测口径、光伏插值与场景权重}",
+           r"  \label{tab:q3-ablation}", r"  \small",
+           r"  \begin{tabular}{lrrr}", r"    \toprule",
+           r"    变体 & 全年费用/元 & 相对基准 & 紧急购电量/kWh \\", r"    \midrule"]
+    for key in ABLATION_ORDER:
+        d = v[key]
+        rel = "--" if key == "legacy_reproduction" else \
+            f"{(d['total_yuan'] - base) / base * 100:+.2f}\\%"
+        out.append(f"    {ABLATION_CN[key]} & {fmt(d['total_yuan'], 2)} & {rel} & "
+                   f"{fmt(d['emergency_kwh'], 2)} \\\\")
+    out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    return "\n".join(out)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--summary", type=Path, default=None)
     ap.add_argument("--upper", type=Path, default=None)
+    ap.add_argument("--hybrid", type=Path, default=None)
+    ap.add_argument("--improve", type=Path, default=None)
     ap.add_argument("--tex-out", type=Path, default=None)
     ap.add_argument("--txt-out", type=Path, default=None)
     ap.add_argument("--policy", default="selective")
@@ -166,6 +236,8 @@ def main() -> None:
 
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     upper = json.loads(upper_path.read_text(encoding="utf-8"))
+    hybrid_path = Path(args.hybrid) if args.hybrid else outs / "q3_hybrid_experiment.json"
+    improve_path = Path(args.improve) if args.improve else outs / "q3_improvement_full.json"
 
     att = q2.Attachment(root)
     f3 = q3.PvForecast3(root)
@@ -175,6 +247,16 @@ def main() -> None:
               tex_forecast_value(upper), tex_dates(rows, args.policy)]
     tex_out.parent.mkdir(parents=True, exist_ok=True)
     tex_out.write_text("\n".join(blocks), encoding="utf-8")
+
+    if hybrid_path.exists() and improve_path.exists():
+        hybrid = json.loads(hybrid_path.read_text(encoding="utf-8"))
+        improve = json.loads(improve_path.read_text(encoding="utf-8"))
+        bridge_tex = tex_out.with_name("q3_bridge_tables.tex")
+        bridge_tex.write_text(tex_bridge(hybrid) + "\n" + tex_ablation(improve) + "\n",
+                              encoding="utf-8")
+        print(f"已写入 {bridge_tex}")
+    else:
+        print(f"跳过双层/消融表（缺少 {hybrid_path.name} 或 {improve_path.name}）")
 
     txt = ["问题三结果表（纯文本核对版）", ""]
     for name in ("none", "fixed", "selective"):
