@@ -76,34 +76,41 @@ def tex_price_stats(st: dict) -> str:
     ])
 
 
-ORDER_42 = ["fixed_price", "volatile_oracle", "volatile_prev", "volatile_profile"]
+ORDER_42 = ["previous_day", "seven_day", "week_type", "similar_day_decay"]
 NAME_CN_42 = {
-    "fixed_price": "附件1 固定电价（问题二基准）",
-    "volatile_oracle": "波动电价，0:00 已知当天电价",
-    "volatile_prev": "波动电价，前一日电价作预测",
-    "volatile_profile": "波动电价，逐时段均值曲线作预测",
+    "previous_day": "前一日同一时刻",
+    "seven_day": "七日均值（正式）",
+    "week_type": "星期类型均值",
+    "similar_day_decay": "相似日 $+$ 时间衰减",
 }
 
 
-def tex_table42(sum42: dict) -> str:
-    v = sum42["variants"]
-    base = v["fixed_price"]["total"]
+def tex_table42(cmp42: dict, hybrid: dict | None = None) -> str:
+    """4-2：四种因果电价预测口径的全年结果，并与问题二同口径基准对比。"""
+    v = cmp42["variants"]
     out = ["% 由 src/py/make_q4_tables.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题四 4-2：波动电价下重做问题二的全年费用（2025-02-01--12-31，共 334 天）}",
+           r"  \caption{问题四 4-2：波动电价下重做问题二的全年费用与四种电价预测口径比较（334 天）}",
            r"  \label{tab:q4-2}", r"  \small",
            r"  \begin{tabular}{lrrrr}", r"    \toprule",
-           r"    方案 & 计划购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 \\",
+           r"    方案 & 正常购电费/元 & 紧急购电费/元 & 合计/元 & 相对问题二基准 \\",
            r"    \midrule"]
+    if hybrid is not None:
+        q2 = hybrid["q2_no_adjust"]
+        base = q2["total_yuan"]
+        out.append(f"    问题二基准（附件1 固定电价） & {fmt(q2['contract_fee_yuan'])} & "
+                   f"{fmt(q2['emergency_cost_yuan'])} & {fmt(base)} & -- \\\\")
+    else:
+        base = v["seven_day"]["total_cost_yuan"]
     for key in ORDER_42:
         d = v[key]
-        rel = "--" if key == "fixed_price" else f"{(d['total']-base)/base*100:+.2f}\\%"
-        out.append(f"    {NAME_CN_42[key]} & {fmt(d['plan_cost'])} & {fmt(d['emg_cost'])} & "
-                   f"{fmt(d['total'])} & {rel} \\\\")
+        rel = f"{(d['total_cost_yuan'] - base) / base * 100:+.2f}\\%"
+        out.append(f"    4-2，{NAME_CN_42[key]} & {fmt(d['normal_purchase_cost_yuan'])} & "
+                   f"{fmt(d['emergency_cost_yuan'])} & {fmt(d['total_cost_yuan'])} & {rel} \\\\")
     out.append(r"    \midrule")
-    pb = sum42["perfect_bound"]["total"]
-    out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(pb)} & "
-               f"{(pb - base) / base * 100:+.2f}\\% \\\\")
+    lb = v["seven_day"]["perfect_information_cost_yuan"]
+    out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(lb)} & "
+               f"{(lb - base) / base * 100:+.2f}\\% \\\\")
     out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
     return "\n".join(out)
 
@@ -122,11 +129,13 @@ def main() -> None:
     tex_out.write_text(tex_price_stats(sum_["price_stats"]) + "\n" + tex_table(sum_) + "\n",
                        encoding="utf-8")
     print(f"已写入 {tex_out}")
-    sp42 = root / "src" / "outputs" / "q4_2_summary.json"
+    sp42 = root / "src" / "outputs" / "q4_2_price_forecast_compare.json"
     if sp42.exists():
-        sum42 = json.loads(sp42.read_text(encoding="utf-8"))
+        cmp42 = json.loads(sp42.read_text(encoding="utf-8"))
+        hyb_path = root / "src" / "outputs" / "q3_hybrid_experiment.json"
+        hybrid = json.loads(hyb_path.read_text(encoding="utf-8")) if hyb_path.exists() else None
         out42 = tex_out.with_name("q4_2_tables.tex")
-        out42.write_text(tex_table42(sum42) + "\n", encoding="utf-8")
+        out42.write_text(tex_table42(cmp42, hybrid) + "\n", encoding="utf-8")
         print(f"已写入 {out42}")
     for k in ORDER:
         d = sum_["variants"][k]

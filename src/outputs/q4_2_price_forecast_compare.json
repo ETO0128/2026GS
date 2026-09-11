@@ -1,0 +1,57 @@
+{
+ "days": 334,
+ "variants": {
+  "previous_day": {
+   "evaluated_days": 334,
+   "price_evaluated_days": 334,
+   "price_mae_yuan_per_kwh": 0.08432593978709248,
+   "price_rmse_yuan_per_kwh": 0.12383718140836512,
+   "price_bias_yuan_per_kwh": -0.0005953551230871591,
+   "normal_purchase_cost_yuan": 15816165.278162213,
+   "emergency_cost_yuan": 1494860.3250918814,
+   "total_cost_yuan": 17311025.603254095,
+   "perfect_information_cost_yuan": 12831089.48415645,
+   "dispatch_regret_yuan": 4479936.1190976435,
+   "constraint_violations": 0
+  },
+  "seven_day": {
+   "evaluated_days": 334,
+   "price_evaluated_days": 334,
+   "price_mae_yuan_per_kwh": 0.08266928345689574,
+   "price_rmse_yuan_per_kwh": 0.1052650947390656,
+   "price_bias_yuan_per_kwh": -0.00032801420967593125,
+   "normal_purchase_cost_yuan": 15761778.548335934,
+   "emergency_cost_yuan": 1494860.3250918814,
+   "total_cost_yuan": 17256638.873427816,
+   "perfect_information_cost_yuan": 12831089.48415645,
+   "dispatch_regret_yuan": 4425549.389271365,
+   "constraint_violations": 0
+  },
+  "week_type": {
+   "evaluated_days": 334,
+   "price_evaluated_days": 334,
+   "price_mae_yuan_per_kwh": 0.10056405226134214,
+   "price_rmse_yuan_per_kwh": 0.13448140299236958,
+   "price_bias_yuan_per_kwh": 0.004061637210246642,
+   "normal_purchase_cost_yuan": 15780090.411945265,
+   "emergency_cost_yuan": 1494860.3250918814,
+   "total_cost_yuan": 17274950.737037145,
+   "perfect_information_cost_yuan": 12831089.48415645,
+   "dispatch_regret_yuan": 4443861.252880694,
+   "constraint_violations": 0
+  },
+  "similar_day_decay": {
+   "evaluated_days": 334,
+   "price_evaluated_days": 334,
+   "price_mae_yuan_per_kwh": 0.0795945124097534,
+   "price_rmse_yuan_per_kwh": 0.11187373132658225,
+   "price_bias_yuan_per_kwh": 0.02273185799288949,
+   "normal_purchase_cost_yuan": 15763918.02650289,
+   "emergency_cost_yuan": 1494860.3250918814,
+   "total_cost_yuan": 17258778.351594772,
+   "perfect_information_cost_yuan": 12831089.48415645,
+   "dispatch_regret_yuan": 4427688.867438322,
+   "constraint_violations": 0
+  }
+ }
+}

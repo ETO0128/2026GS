@@ -41,10 +41,10 @@ NAME_CN = {
     "volatile_profile": "波动电价\n均值曲线预测",
 }
 NAME_CN_42 = {
-    "fixed_price": "固定电价\n（问题二基准）",
-    "volatile_oracle": "波动电价\n已知当天电价",
-    "volatile_prev": "波动电价\n前一日价格预测",
-    "volatile_profile": "波动电价\n均值曲线预测",
+    "previous_day": "4-2 前一日\n同一时刻",
+    "seven_day": "4-2 七日均值\n（正式）",
+    "week_type": "4-2 星期类型\n均值",
+    "similar_day_decay": "4-2 相似日\n+时间衰减",
 }
 
 
@@ -99,25 +99,32 @@ def figure_cost(sum_: dict, fig_dir: Path) -> None:
     plt.close(fig)
 
 
-def figure_cost42(sum42: dict, fig_dir: Path) -> None:
-    order = ["fixed_price", "volatile_oracle", "volatile_prev", "volatile_profile"]
-    v = sum42["variants"]
-    tot = [v[k]["total"] / 1e4 for k in order]
-    fig, ax = plt.subplots(figsize=(7.2, 3.4), constrained_layout=True)
-    bars = ax.bar(range(len(order)), tot, color=[GRAY, BLUE, BLUE, BLUE], width=0.62)
-    for b, a in zip(bars, [1.0, 1.0, 0.6, 0.6]):
+def figure_cost42(cmp42: dict, hybrid: dict | None, fig_dir: Path) -> None:
+    order = ["previous_day", "seven_day", "week_type", "similar_day_decay"]
+    v = cmp42["variants"]
+    totals = [(NAME_CN_42[m], v[m]["total_cost_yuan"] / 1e4) for m in order]
+    if hybrid is not None:
+        totals.insert(0, ("问题二基准\n（附件1 固定电价）", hybrid["q2_no_adjust"]["total_yuan"] / 1e4))
+    labels = [t[0] for t in totals]
+    tot = [t[1] for t in totals]
+    lb = v["seven_day"]["perfect_information_cost_yuan"] / 1e4
+    colors = [GRAY] + [BLUE] * 4
+    alphas = [1.0, 0.6, 1.0, 0.6, 0.6]
+    fig, ax = plt.subplots(figsize=(7.4, 3.4), constrained_layout=True)
+    bars = ax.bar(range(len(tot)), tot, color=colors, width=0.6)
+    for b, a in zip(bars, alphas):
         b.set_alpha(a)
     for k, y in enumerate(tot):
-        ax.text(k, y + 12, f"{y:,.1f}", ha="center", fontsize=8)
-    ax.axhline(sum42["perfect_bound"]["total"] / 1e4, color=RED, linestyle="--", linewidth=1.2,
-               label=f"完全信息下界 {sum42['perfect_bound']['total']/1e4:,.1f} 万元")
-    ax.set_xticks(range(len(order)))
-    ax.set_xticklabels([NAME_CN_42[k] for k in order], fontsize=8)
+        ax.text(k, y + 8, f"{y:,.1f}", ha="center", fontsize=8)
+    ax.axhline(lb, color=RED, linestyle="--", linewidth=1.2,
+               label=f"完全信息下界 {lb:,.1f} 万元")
+    ax.set_xticks(range(len(tot)))
+    ax.set_xticklabels(labels, fontsize=7.6)
     ax.set_ylabel("全年费用/万元")
-    ax.set_ylim(min(tot + [sum42["perfect_bound"]["total"] / 1e4]) * 0.93, max(tot) * 1.04)
+    ax.set_ylim(min(tot + [lb]) * 0.94, max(tot) * 1.05)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
-    ax.set_title("问题四 4-2：波动电价下各方案的全年费用", fontsize=10)
+    ax.set_title("问题四 4-2：波动电价下四种电价预测口径的全年费用", fontsize=10)
     for ext in ("pdf", "png"):
         fig.savefig(fig_dir / f"q4_2_cost.{ext}", bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -139,9 +146,11 @@ def main() -> None:
     sum_ = json.loads(sp.read_text(encoding="utf-8"))
     figure_price_band(p4, att, fig_dir)
     figure_cost(sum_, fig_dir)
-    sp42 = root / "src" / "outputs" / "q4_2_summary.json"
+    sp42 = root / "src" / "outputs" / "q4_2_price_forecast_compare.json"
+    hyb = root / "src" / "outputs" / "q3_hybrid_experiment.json"
     if sp42.exists():
-        figure_cost42(json.loads(sp42.read_text(encoding="utf-8")), fig_dir)
+        hybrid = json.loads(hyb.read_text(encoding="utf-8")) if hyb.exists() else None
+        figure_cost42(json.loads(sp42.read_text(encoding="utf-8")), hybrid, fig_dir)
     print(f"图片已写入 {fig_dir}")
 
 
