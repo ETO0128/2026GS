@@ -35,3 +35,6 @@ src/outputs/*.npy
 src/outputs/*_run_log.txt
 src/outputs/*_run_err.txt
 src/outputs/*.xlsx
+src/outputs/*.npz
+src/outputs/*_run_log.txt
+src/outputs/*_run_err.txt
