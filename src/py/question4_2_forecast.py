@@ -21,7 +21,7 @@ class PriceForecastConfig:
 @dataclass(frozen=True)
 class PriceForecastResult:
     decision_date: date
-    history_end_date: date
+    history_end_date: date | None
     price_yuan_per_kwh: np.ndarray
     method: str
     source_dates: tuple[date, ...]
