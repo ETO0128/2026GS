@@ -6,6 +6,7 @@
 输出（同时保存 pdf 与 png）：
     src/figure/q4_price_band.pdf   附件4 电价的日间波动带与附件1 曲线
     src/figure/q4_3_cost.pdf       4-3 各方案全年费用对比
+    src/figure/q4_2_cost.pdf       4-2 各方案全年费用对比
 """
 from __future__ import annotations
 
@@ -35,6 +36,12 @@ BLUE, RED, GRAY, ORANGE = "#2F5597", "#C00000", "#7F7F7F", "#C65911"
 NAME_CN = {
     "fixed_price": "固定电价\n（问题三基准）",
     "volatile_oracle_none": "波动电价\n不调整",
+    "volatile_oracle": "波动电价\n已知当天电价",
+    "volatile_prev": "波动电价\n前一日价格预测",
+    "volatile_profile": "波动电价\n均值曲线预测",
+}
+NAME_CN_42 = {
+    "fixed_price": "固定电价\n（问题二基准）",
     "volatile_oracle": "波动电价\n已知当天电价",
     "volatile_prev": "波动电价\n前一日价格预测",
     "volatile_profile": "波动电价\n均值曲线预测",
@@ -92,6 +99,30 @@ def figure_cost(sum_: dict, fig_dir: Path) -> None:
     plt.close(fig)
 
 
+def figure_cost42(sum42: dict, fig_dir: Path) -> None:
+    order = ["fixed_price", "volatile_oracle", "volatile_prev", "volatile_profile"]
+    v = sum42["variants"]
+    tot = [v[k]["total"] / 1e4 for k in order]
+    fig, ax = plt.subplots(figsize=(7.2, 3.4), constrained_layout=True)
+    bars = ax.bar(range(len(order)), tot, color=[GRAY, BLUE, BLUE, BLUE], width=0.62)
+    for b, a in zip(bars, [1.0, 1.0, 0.6, 0.6]):
+        b.set_alpha(a)
+    for k, y in enumerate(tot):
+        ax.text(k, y + 12, f"{y:,.1f}", ha="center", fontsize=8)
+    ax.axhline(sum42["perfect_bound"]["total"] / 1e4, color=RED, linestyle="--", linewidth=1.2,
+               label=f"完全信息下界 {sum42['perfect_bound']['total']/1e4:,.1f} 万元")
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels([NAME_CN_42[k] for k in order], fontsize=8)
+    ax.set_ylabel("全年费用/万元")
+    ax.set_ylim(min(tot + [sum42["perfect_bound"]["total"] / 1e4]) * 0.93, max(tot) * 1.04)
+    ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
+    ax.legend(frameon=False, loc="lower right")
+    ax.set_title("问题四 4-2：波动电价下各方案的全年费用", fontsize=10)
+    for ext in ("pdf", "png"):
+        fig.savefig(fig_dir / f"q4_2_cost.{ext}", bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-root", type=Path, default=None)
@@ -108,6 +139,9 @@ def main() -> None:
     sum_ = json.loads(sp.read_text(encoding="utf-8"))
     figure_price_band(p4, att, fig_dir)
     figure_cost(sum_, fig_dir)
+    sp42 = root / "src" / "outputs" / "q4_2_summary.json"
+    if sp42.exists():
+        figure_cost42(json.loads(sp42.read_text(encoding="utf-8")), fig_dir)
     print(f"图片已写入 {fig_dir}")
 
 
