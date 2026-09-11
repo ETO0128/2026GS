@@ -24,6 +24,8 @@
 
 ### Task 1: 全年源荷与波动电价数据契约
 
+**Status:** Completed and pushed in `19ba21b`.
+
 **Files:**
 - Modify: `src/py/question2_data.py`
 - Create: `src/py/question4_2_data.py`
@@ -142,6 +144,8 @@ git push origin xtc
 
 ### Task 2: 无泄漏电价预测基线
 
+**Status:** Completed and pushed in `cb36379`.
+
 **Files:**
 - Create: `src/py/question4_2_forecast.py`
 - Create: `src/py/test_question4_2_forecast.py`
@@ -214,6 +218,8 @@ git push origin xtc
 ```
 
 ### Task 3: 因果确定性调度、真实结算与完全信息下界
+
+**Status:** Completed and pushed in `3188efd`.
 
 **Files:**
 - Create: `src/py/question4_2_dispatch.py`
@@ -325,6 +331,8 @@ git push origin xtc
 
 ### Task 4: 顺序运行、指标与首轮真实数据验证
 
+**Status:** Completed and pushed in `a329716`.
+
 **Files:**
 - Create: `src/py/question4_2.py`
 - Create: `src/py/test_question4_2_integration.py`
@@ -414,6 +422,8 @@ git push origin xtc
 ```
 
 ### Task 5: 第一里程碑验收
+
+**Status:** Verification completed; Issue #16 report awaits user confirmation before publication.
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-09-11-question4-2-causal-baseline.md`
