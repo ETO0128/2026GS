@@ -132,3 +132,22 @@ C 题建模依据与参考文献（IEEE 格式）
      day methods for short-term load forecasting for power systems,”
      Forecasting, vol. 8, no. 2, Art. no. 32, 2026,
      doi: 10.3390/forecast8020032.
+
+[19] Y. Wang, Q. Chen, N. Zhang, and Y. Wang, “Conditional residual modeling
+     for probabilistic load forecasting,” IEEE Transactions on Power Systems,
+     vol. 33, no. 6, pp. 7327--7330, 2018,
+     doi: 10.1109/TPWRS.2018.2868167.
+
+[20] J. W. Taylor, “Forecasting daily supermarket sales using exponentially
+     weighted quantile regression,” European Journal of Operational Research,
+     vol. 178, no. 1, pp. 154--167, 2007,
+     doi: 10.1016/j.ejor.2006.02.006.
+
+[21] L. J. Tashman, “Out-of-sample tests of forecasting accuracy: An analysis
+     and review,” International Journal of Forecasting, vol. 16, no. 4,
+     pp. 437--450, 2000, doi: 10.1016/S0169-2070(00)00065-0.
+
+[22] A. Jayawardana, A. P. Agalgaonkar, D. A. Robinson, and M. Fiorentini,
+     “Optimisation framework for the operation of battery storage within
+     solar-rich microgrids,” IET Smart Grid, vol. 2, no. 4, pp. 504--513,
+     2019, doi: 10.1049/iet-stg.2019.0084.

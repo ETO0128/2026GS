@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Literal
 
@@ -12,6 +12,7 @@ from question2_data import YearData
 
 
 ForecastMethod = Literal["previous_day", "seven_day", "week_type", "similar_day"]
+PlanningMethod = Literal["historical_net", "conditional_residual"]
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,10 @@ class ForecastConfig:
     lambda_load: float = 0.95
     lambda_pv: float = 0.95
     planning_quantile: float = 0.80
+    planning_method: PlanningMethod = "conditional_residual"
+    residual_window_days: int = 90
+    residual_candidate_count: int = 28
+    residual_decay: float = 0.95
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,69 @@ def _higher_weighted_quantile(values: np.ndarray, weights: np.ndarray, quantile:
     cumulative = np.cumsum(sorted_weights, axis=0)
     indices = np.argmax(cumulative >= quantile * weights.sum(), axis=0)
     return sorted_values[indices, np.arange(values.shape[1])]
+
+
+def apply_conditional_residual_quantile(
+    point_forecast: ForecastResult,
+    decision_date: date,
+    history_dates: tuple[date, ...],
+    history_point_net_kw: np.ndarray,
+    history_residual_net_kw: np.ndarray,
+    config: ForecastConfig,
+) -> ForecastResult:
+    """Add an exponentially weighted conditional residual quantile to a point forecast.
+
+    Candidate residual days are selected by the distance between their causal point
+    forecasts and the target point forecast.  All candidates precede the decision
+    date, and recency enters the weighted empirical quantile directly.
+    """
+
+    if config.planning_method != "conditional_residual":
+        return point_forecast
+    if not history_dates:
+        return point_forecast
+    if config.residual_window_days < 1 or config.residual_candidate_count < 1:
+        raise ValueError("Residual window and candidate count must be positive")
+    if not 0.0 < config.residual_decay <= 1.0:
+        raise ValueError("residual_decay must lie in (0, 1]")
+    if not 0.0 < config.planning_quantile < 1.0:
+        raise ValueError("planning_quantile must lie strictly between zero and one")
+    point_history = np.asarray(history_point_net_kw, dtype=float)
+    residual_history = np.asarray(history_residual_net_kw, dtype=float)
+    expected_shape = (len(history_dates), 144)
+    if point_history.shape != expected_shape or residual_history.shape != expected_shape:
+        raise ValueError(f"Residual histories must have shape {expected_shape}")
+    if any(item >= decision_date for item in history_dates):
+        raise ValueError("Conditional residual quantiles cannot use current or future dates")
+
+    ages = np.asarray([(decision_date - item).days for item in history_dates], dtype=int)
+    eligible = np.flatnonzero(ages <= config.residual_window_days)
+    if eligible.size == 0:
+        eligible = np.arange(len(history_dates), dtype=int)
+    target_net = point_forecast.load_kw - point_forecast.pv_kw
+    scale = max(float(np.mean(np.abs(target_net))), 1.0)
+    distance = np.sqrt(np.mean(((point_history[eligible] - target_net) / scale) ** 2, axis=1))
+    order = np.argsort(distance, kind="stable")[: config.residual_candidate_count]
+    selected = eligible[order]
+    similarity = 1.0 / (1.0 + distance[order])
+    weights = similarity * np.power(config.residual_decay, ages[selected])
+    residual_quantile = _higher_weighted_quantile(
+        residual_history[selected],
+        weights,
+        config.planning_quantile,
+    )
+    parameters = dict(point_forecast.parameters)
+    parameters.update({
+        "planning_method": config.planning_method,
+        "residual_window_days": config.residual_window_days,
+        "residual_candidate_count": int(selected.size),
+        "residual_decay": config.residual_decay,
+    })
+    return replace(
+        point_forecast,
+        planning_net_kw=target_net + residual_quantile,
+        parameters=parameters,
+    )
 
 
 def _recent_indices(day_index: int, window_days: int) -> np.ndarray:

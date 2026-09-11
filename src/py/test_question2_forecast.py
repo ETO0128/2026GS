@@ -9,7 +9,12 @@ from datetime import date, timedelta
 import numpy as np
 
 from question2_data import YearData
-from question2_forecast import ForecastConfig, forecast_day, forecast_metrics
+from question2_forecast import (
+    ForecastConfig,
+    apply_conditional_residual_quantile,
+    forecast_day,
+    forecast_metrics,
+)
 
 
 def make_data(days: int = 40) -> YearData:
@@ -46,6 +51,62 @@ class Question2ForecastTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["mae"], 1.5)
         self.assertAlmostEqual(metrics["rmse"], np.sqrt(2.5))
         self.assertAlmostEqual(metrics["bias"], -0.5)
+
+    def test_conditional_residual_quantile_adds_residual_to_point_forecast(self) -> None:
+        data = make_data(5)
+        target = forecast_day(data, 4, ForecastConfig(method="seven_day"))
+        history_dates = data.dates[:4]
+        point_history = np.stack([target.load_kw - target.pv_kw] * 4)
+        residuals = np.stack([np.full(144, value) for value in (10.0, 20.0, 30.0, 40.0)])
+        config = ForecastConfig(
+            method="seven_day",
+            planning_quantile=0.80,
+            residual_candidate_count=4,
+            residual_decay=1.0,
+        )
+        result = apply_conditional_residual_quantile(
+            target,
+            data.dates[4],
+            history_dates,
+            point_history,
+            residuals,
+            config,
+        )
+        np.testing.assert_allclose(
+            result.planning_net_kw,
+            target.load_kw - target.pv_kw + 40.0,
+        )
+
+    def test_conditional_residual_quantile_rejects_future_history(self) -> None:
+        data = make_data(5)
+        target = forecast_day(data, 4, ForecastConfig(method="seven_day"))
+        with self.assertRaises(ValueError):
+            apply_conditional_residual_quantile(
+                target,
+                data.dates[4],
+                (data.dates[4],),
+                np.zeros((1, 144)),
+                np.zeros((1, 144)),
+                ForecastConfig(),
+            )
+
+    def test_conditional_residual_quantile_applies_time_decay(self) -> None:
+        data = make_data(3)
+        target = forecast_day(data, 2, ForecastConfig(method="seven_day"))
+        target_net = target.load_kw - target.pv_kw
+        result = apply_conditional_residual_quantile(
+            target,
+            data.dates[2],
+            data.dates[:2],
+            np.stack([target_net, target_net]),
+            np.stack([np.full(144, 100.0), np.zeros(144)]),
+            ForecastConfig(
+                planning_quantile=0.60,
+                residual_candidate_count=2,
+                residual_decay=0.50,
+            ),
+        )
+        np.testing.assert_allclose(result.planning_net_kw, target_net)
 
 
 if __name__ == "__main__":
