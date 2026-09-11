@@ -609,16 +609,15 @@ Decision variables are charge, discharge, curtailment, emergency purchase, SOC, 
 
 - [ ] **Step 5: Add performance and feasibility guards**
 
-Prebuild reusable sparse coefficient patterns by remaining horizon length. Record solve count and elapsed seconds. Raise with date and slot if HiGHS fails. Validate every executed slot and the full SOC trajectory. A seven-day benchmark must complete before attempting the full year; record the observed runtime in the run metadata rather than asserting a machine-specific threshold.
+Prebuild reusable sparse coefficient patterns by remaining horizon length. Record solve count and elapsed seconds. Raise with date and slot if HiGHS fails. Validate every executed slot and the full SOC trajectory. Add a one-day synthetic benchmark test here; the seven-day real-data benchmark runs in Task 7 after the CLI exists. Record observed runtime rather than asserting a machine-specific threshold.
 
-- [ ] **Step 6: Run recourse tests and seven-day benchmark**
+- [ ] **Step 6: Run recourse tests and one-day synthetic benchmark**
 
 ```powershell
 python -m unittest src/py/test_question2_dispatch.py -v
-python src/py/question2.py --strategy causal --start 2025-02-01 --end 2025-02-07 --dry-run
 ```
 
-Expected: no leakage, lower emergency purchase in the constructed case, no physical violations, and benchmark timing printed.
+Expected: no leakage, lower emergency purchase in the constructed case, no physical violations, and one-day benchmark timing recorded by the test.
 
 - [ ] **Step 7: Commit causal recourse**
 
@@ -720,9 +719,10 @@ Select the official candidate only from causal information. Report every case; d
 ```powershell
 python -m unittest src/py/test_question2_integration.py -v
 python src/py/question2.py --strategy fixed --forecast all --dry-run
+python src/py/question2.py --strategy causal --forecast seven_day --start 2025-02-01 --end 2025-02-07 --dry-run
 ```
 
-Expected: 365 simulated days, 334 official days, no leakage, no physical violation, and a printed comparison table.
+Expected: 365 simulated days, 334 official days, no leakage, no physical violation, a printed comparison table, and seven-day causal runtime metadata.
 
 - [ ] **Step 6: Commit annual evaluation**
 
