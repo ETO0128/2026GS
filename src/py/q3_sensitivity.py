@@ -3,7 +3,7 @@
 按“一次一个因素”方式扫描（口径 A、selective 策略、全年 334 天），结果写入
 ``src/outputs/q3_sens.json`` 缓存，便于分批运行；每次运行都会重新生成
 ``src/outputs/q3_sensitivity_report.txt``、``src/tex/q3_sensitivity.tex``
-与插图 ``src/figure/q3_sensitivity.pdf/.png``。
+与插图 ``src/tex/figure/q3_sensitivity.pdf``。
 
 用法：
     python src/py/q3_sensitivity.py --factor cap --levels 0.6,0.8,1.2,1.5
@@ -23,10 +23,10 @@ import q3_model as q3
 FACTORS = {
     "cap": ("储能容量", lambda v: q3.Params().scaled_e(v), "{:.0%}"),
     "pow": ("储能功率", lambda v: q3.Params(c_max=q2.C_MAX_KWH * v), "{:.0%}"),
-    "eta": ("往返效率", lambda v: q3.Params(eta=v), "{:.2f}"),
-    "e0": ("初始储电量", lambda v: q3.Params(e0=v), "{:,.0f} kWh"),
+    "eta": ("单向充放电效率", lambda v: q3.Params(eta=v), "{:.2f}"),
+    "e0": ("日首日末储电量", lambda v: q3.Params(e0=v), "{:,.0f} kWh"),
     "emg": ("紧急购电倍率", lambda v: q3.Params(emg=v), "{:.0f} 倍"),
-    "fcst": ("预报误差标定倍率", None, "{:.0%}"),
+    "fcst": ("残差场景幅度倍率", None, "{:.0%}"),
 }
 BASE_LEVEL = {"cap": 1.0, "pow": 1.0, "eta": q2.ETA_C, "e0": q2.E0_KWH,
               "emg": q2.EMG_MULTIPLIER, "fcst": 1.0}
@@ -97,7 +97,8 @@ def main() -> None:
             d = rows[k]
             rel = "--" if k == base_lv else f"{(d['total']-base)/base*100:+.2f}\\%"
             name = cn if i == 0 else ""
-            tex.append(f"    {name} & {fmt.format(float(k))} & {d['total']:,.0f} & "
+            level = fmt.format(float(k)).replace("%", r"\%")
+            tex.append(f"    {name} & {level} & {d['total']:,.0f} & "
                        f"{d['emg']:,.0f} & {rel} \\\\")
         tex.append(r"    \addlinespace")
     tex += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}"]

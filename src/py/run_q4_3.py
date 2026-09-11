@@ -32,7 +32,7 @@ NAME_CN = {
     "fixed_price": "附件1 固定电价（问题三基准）",
     "volatile_oracle": "波动电价·0:00 已知当天电价",
     "volatile_prev": "波动电价·前一日电价作预测（因果）",
-    "volatile_profile": "波动电价·逐时段均值曲线作预测（因果）",
+    "volatile_profile": "波动电价·历史扩展均值预测（因果，正式）",
     "volatile_oracle_none": "波动电价·已知电价但不做调整",
 }
 

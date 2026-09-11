@@ -9,13 +9,13 @@
 | `run_question2.py` | 全年实验：自检 → 预测质量 → 策略阶梯 → 临界分位验证 → 随机规划与安全余量 |
 | `fill_result2.py` | 把结果回填到官方模板 `result2.xlsx`（计划购电量 / 充放电量 / 紧急购电量） |
 | `make_q2_tables.py` | 生成论文表 1/表 2/表 3 与附录紧急购电明细（LaTeX，数字全部由代码生成） |
-| `plot_question2.py` | 论文用图（输出到 `src/figure/`） |
+| `plot_question2.py` | 论文用图（输出到 `src/tex/figure/`） |
 
 论文对应内容：`src/tex/main.tex` 的“问题二”一章（信息结构与执行口径、两阶段随机规划模型、
 场景生成与预测、临界分位与储能安全余量、求解与验证、结果与分析），表格由
 `\input{q2_tables}` 与 `\input{q2_tables_appendix}` 引入（文件在 `src/tex/` 下，与 main.tex
-同目录，上传到在线工程根目录即可）；插图需将 `src/figure/q2_scenario_plan.pdf` 与
-`src/figure/q2_safety_margin.pdf` 放入在线工程的 `figures/` 目录。
+同目录，上传到在线工程根目录即可）；插图需将 `src/tex/figure/q2_scenario_plan.pdf` 与
+`src/tex/figure/q2_safety_margin.pdf` 放入在线工程的 `figures/` 目录。
 
 ## 运行
 

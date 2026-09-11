@@ -38,7 +38,7 @@ def _season(value: date) -> int:
 
 
 def _validate_request(data: Question42Data, target_index: int, config: PriceForecastConfig) -> None:
-    methods = {"previous_day", "seven_day", "week_type", "similar_day_decay"}
+    methods = {"previous_day", "seven_day", "week_type", "similar_day_decay", "expanding_mean"}
     if config.method not in methods:
         raise ValueError(f"Unknown price forecast method: {config.method}")
     if not 0 <= target_index < len(data.dates):
@@ -92,6 +92,11 @@ def forecast_price(
 
     if config.method == "seven_day":
         sources = np.arange(max(0, target_index - 7), target_index, dtype=int)
+        return _result(data, target_index, config, sources, np.ones(len(sources)), None)
+
+    if config.method == "expanding_mean":
+        # 截至决策日前的扩展窗口均值；与旧版“全年均值曲线”不同，不读取未来日期。
+        sources = np.arange(target_index, dtype=int)
         return _result(data, target_index, config, sources, np.ones(len(sources)), None)
 
     ages = np.asarray(

@@ -9,7 +9,7 @@
 ├── MODELING_PLAN.md  # C 题建模方案、难点与团队分工
 ├── TEAM_GIT_GUIDE.md # 团队 Git、SSH 与分支协作手册
 ├── problems/      # 竞赛题目、数据附件与结果模板
-├── src/figure/    # 论文图片与绘图资源
+├── src/tex/figure/ # 论文图片与绘图资源
 ├── src/py/        # 建模、求解、结果写入与绘图代码
 ├── src/tex/       # 正式论文、LaTeX 模板和样式文件
 └── example.pdf    # 模板编译效果示例
@@ -42,10 +42,10 @@ Closes #编号
 ## 论文写作与编译
 
 - 正式论文统一在 [`src/tex/main.tex`](src/tex/main.tex) 中编写。
-- 论文图片源文件统一放入 `src/figure/`；同步至在线平台时，将其中的图片上传到
+- 论文图片源文件统一放入 `src/tex/figure/`；同步至在线平台时，将其中的图片上传到
   在线工程根目录的 `figures/` 文件夹，`main.tex` 使用 `figures/...` 路径引用。
 - `src/tex/example.tex` 仅作为模板用法参考，不在其中撰写正式论文。
-- 不在本地编译 LaTeX。团队统一在[上海交通大学 LaTeX 平台](https://latex.sjtu.edu.cn/project/6aa2629ebd92933f73a45794)编译；将 `src/tex/` 内的文件放在在线工程根目录，并将 `src/figure/` 内的图片上传到在线工程的 `figures/` 文件夹。
+- 不在本地编译 LaTeX。团队统一在[上海交通大学 LaTeX 平台](https://latex.sjtu.edu.cn/project/6aa2629ebd92933f73a45794)编译；将 `src/tex/` 内的文件放在在线工程根目录，并将 `src/tex/figure/` 内的图片上传到在线工程的 `figures/` 文件夹。
 - 编译前后根据当年竞赛官方要求检查封面、编号页、承诺书及 AI 工具使用声明等内容。
 
 模板的详细说明与更新记录见 [`src/tex/README.md`](src/tex/README.md)。
@@ -62,7 +62,7 @@ Closes #编号
 
 - 竞赛格式和提交要求以 2026 年官方通知为准。
 - 请勿将报名号、队员个人信息、账号凭据或未脱敏的敏感数据提交到公开仓库。
-- 向在线平台同步时，应同时上传 `src/tex` 中的 LaTeX 文件和 `src/figure/` 中使用的图片；
+- 向在线平台同步时，应同时上传 `src/tex` 中的 LaTeX 文件和 `src/tex/figure/` 中使用的图片；
   在线工程采用 `main.tex` 与 `figures/` 同级的目录结构。
 
 ## License

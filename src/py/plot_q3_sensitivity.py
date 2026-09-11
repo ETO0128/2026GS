@@ -1,7 +1,7 @@
 """问题三敏感性分析插图（论文用图）。
 
 运行：python src/py/plot_q3_sensitivity.py
-输出：src/figure/q3_sensitivity.pdf / .png
+输出：src/tex/figure/q3_sensitivity.pdf
 """
 from __future__ import annotations
 
@@ -29,10 +29,10 @@ BLUE, RED = "#2F5597", "#C00000"
 PANELS = [
     ("cap", "储能容量", "容量相对基准", 1.0),
     ("pow", "储能功率", "功率相对基准", 1.0),
-    ("eta", "往返效率", "往返效率", q2.ETA_C),
-    ("e0", "初始储电量", "初始储电量/kWh", q2.E0_KWH),
+    ("eta", "单向充放电效率", "单向效率", q2.ETA_C),
+    ("e0", "日首日末储电量", "边界储电量/kWh", q2.E0_KWH),
     ("emg", "紧急购电倍率", "紧急购电倍率", q2.EMG_MULTIPLIER),
-    ("fcst", "预报误差标定倍率", "标定倍率", 1.0),
+    ("fcst", "残差场景幅度倍率", "场景幅度倍率", 1.0),
 ]
 
 
@@ -59,10 +59,10 @@ def main() -> None:
         ax.set_xlabel(xlabel)
         ax.set_ylabel("全年费用相对变化/%")
         ax.grid(color="#E6E6E6", linewidth=0.6)
-    for ext in ("pdf", "png"):
-        fig.savefig(root / "src" / "figure" / f"q3_sensitivity.{ext}",
-                    bbox_inches="tight", facecolor="white")
-    print("图片已写入 src/figure/q3_sensitivity.pdf/.png")
+    figure_dir = root / "src" / "tex" / "figure"
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(figure_dir / "q3_sensitivity.pdf", bbox_inches="tight", facecolor="white")
+    print("图片已写入 src/tex/figure/q3_sensitivity.pdf")
 
 
 if __name__ == "__main__":

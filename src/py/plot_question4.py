@@ -4,9 +4,9 @@
     python src/py/plot_question4.py
 
 输出（同时保存 pdf 与 png）：
-    src/figure/q4_price_band.pdf   附件4 电价的日间波动带与附件1 曲线
-    src/figure/q4_3_cost.pdf       4-3 各方案全年费用对比
-    src/figure/q4_2_cost.pdf       4-2 各方案全年费用对比
+    src/tex/figure/q4_price_band.pdf 附件4 电价的日间波动带与附件1 曲线
+    src/tex/figure/q4_3_cost.pdf     4-3 各方案全年费用对比
+    src/tex/figure/q4_2_cost.pdf     4-2 各方案全年费用对比
 """
 from __future__ import annotations
 
@@ -38,13 +38,22 @@ NAME_CN = {
     "volatile_oracle_none": "波动电价\n不调整",
     "volatile_oracle": "波动电价\n已知当天电价",
     "volatile_prev": "波动电价\n前一日价格预测",
-    "volatile_profile": "波动电价\n均值曲线预测",
+    "volatile_profile": "波动电价\n历史扩展均值",
+    "volatile_seven_day": "波动电价\n近七日均值",
+    "volatile_previous_day": "波动电价\n前一日曲线",
+    "volatile_week_type": "波动电价\n同星期类型",
+    "volatile_similar_decay": "波动电价\n相似日衰减",
+    "volatile_expanding_mean": "波动电价\n历史扩展均值",
+    "volatile_oracle_benchmark": "当日电价\n信息基准",
 }
 NAME_CN_42 = {
     "fixed_price": "固定电价\n（问题二基准）",
-    "volatile_oracle": "波动电价\n已知当天电价",
-    "volatile_prev": "波动电价\n前一日价格预测",
-    "volatile_profile": "波动电价\n均值曲线预测",
+    "volatile_seven_day": "波动电价\n近七日均值",
+    "volatile_previous_day": "波动电价\n前一日曲线",
+    "volatile_week_type": "波动电价\n同星期类型",
+    "volatile_similar_decay": "波动电价\n相似日衰减",
+    "volatile_expanding_mean": "波动电价\n历史扩展均值",
+    "volatile_oracle_benchmark": "当日电价\n信息基准",
 }
 
 
@@ -67,8 +76,7 @@ def figure_price_band(p4: q4.Prices4, att: q2.Attachment, fig_dir: Path) -> None
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, ncol=2, loc="upper left")
     ax.set_title("附件4 波动电价：日内形态与附件1 一致，但存在显著的日间波动", fontsize=10)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q4_price_band.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q4_price_band.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -94,13 +102,13 @@ def figure_cost(sum_: dict, fig_dir: Path) -> None:
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
     ax.set_title("问题四 4-3：波动电价下各方案的全年费用", fontsize=10)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q4_3_cost.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q4_3_cost.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
 def figure_cost42(sum42: dict, fig_dir: Path) -> None:
-    order = ["fixed_price", "volatile_oracle", "volatile_prev", "volatile_profile"]
+    order = ["fixed_price", "volatile_seven_day", "volatile_similar_decay",
+             "volatile_expanding_mean", "volatile_previous_day", "volatile_oracle_benchmark"]
     v = sum42["variants"]
     tot = [v[k]["total"] / 1e4 for k in order]
     fig, ax = plt.subplots(figsize=(7.2, 3.4), constrained_layout=True)
@@ -118,8 +126,7 @@ def figure_cost42(sum42: dict, fig_dir: Path) -> None:
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
     ax.set_title("问题四 4-2：波动电价下各方案的全年费用", fontsize=10)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q4_2_cost.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q4_2_cost.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -129,7 +136,7 @@ def main() -> None:
     ap.add_argument("--figure-dir", type=Path, default=None)
     args = ap.parse_args()
     root = Path(args.data_root) if args.data_root else q2.project_root()
-    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "figure"
+    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "tex" / "figure"
     fig_dir.mkdir(parents=True, exist_ok=True)
     att = q2.Attachment(root)
     p4 = q4.Prices4(root, att)

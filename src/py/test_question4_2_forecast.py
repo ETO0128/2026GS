@@ -54,6 +54,13 @@ class Question42ForecastTests(unittest.TestCase):
         self.assertEqual(result.source_dates, tuple(data.dates[index] for index in expected_indices))
         self.assertIsNone(result.fallback_reason)
 
+    def test_expanding_mean_uses_only_history_available_at_decision(self) -> None:
+        data = synthetic_data()
+        result = forecast_price(data, 10, PriceForecastConfig(method="expanding_mean"))
+        np.testing.assert_allclose(result.price_yuan_per_kwh, data.price_yuan_per_kwh[:10].mean(axis=0))
+        self.assertEqual(result.source_dates, data.dates[:10])
+        self.assertLess(result.history_end_date, result.decision_date)
+
     def test_similar_day_weights_decay_toward_recent_history(self) -> None:
         data = synthetic_data()
         constant_prices = np.full_like(data.price_yuan_per_kwh, 0.5)
