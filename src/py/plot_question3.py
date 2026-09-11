@@ -4,8 +4,8 @@
     python src/py/plot_question3.py
 
 输出（同时保存 pdf 与 png）：
-    src/figure/q3_forecast_value.pdf   其他时刻预报的价值（上界）与节点累积价值
-    src/figure/q3_adjust_day.pdf       指定日期的计划购电量 vs 调整购电量
+    src/tex/figure/q3_forecast_value.pdf 其他时刻预报的价值（上界）与节点累积价值
+    src/tex/figure/q3_adjust_day.pdf     指定日期的计划购电量 vs 调整购电量
 """
 from __future__ import annotations
 
@@ -72,8 +72,7 @@ def figure_forecast_value(upper: dict, summary: dict, fig_dir: Path) -> None:
     ax.set_title("逐次增加预报时刻的全年费用\n（固定调整策略）", fontsize=9)
     ax.grid(color="#D9D9D9", linewidth=0.5)
 
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q3_forecast_value.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q3_forecast_value.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -122,8 +121,7 @@ def figure_adjust_day(att: q.Attachment, f3: q3.PvForecast3, fig_dir: Path, day:
     ax.set_ylim(0, 12000)
     ax.legend(frameon=False, ncol=3, loc="lower left")
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q3_adjust_day.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q3_adjust_day.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -136,7 +134,7 @@ def main() -> None:
     args = ap.parse_args()
 
     root = Path(args.data_root) if args.data_root else q.project_root()
-    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "figure"
+    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "tex" / "figure"
     fig_dir.mkdir(parents=True, exist_ok=True)
     outs = root / "src" / "outputs"
 

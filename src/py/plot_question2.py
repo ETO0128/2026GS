@@ -5,8 +5,8 @@
     python src/py/plot_question2.py      # 再绘图
 
 输出（同时保存 pdf 与 png）：
-    src/figure/q2_scenario_plan.pdf     场景扇形 + 确定性/随机计划 + 储电量轨迹
-    src/figure/q2_safety_margin.pdf     安全余量随不确定性增大、集中在高价时段
+    src/tex/figure/q2_scenario_plan.pdf 场景扇形 + 确定性/随机计划 + 储电量轨迹
+    src/tex/figure/q2_safety_margin.pdf 安全余量随不确定性增大、集中在高价时段
 """
 from __future__ import annotations
 
@@ -73,8 +73,7 @@ def figure_scenario_plan(att: q.Attachment, cache: dict, fig_dir: Path, day: dt.
     ax.set_ylim(0, 12000)
     ax.legend(frameon=False, ncol=2, loc="upper left")
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q2_scenario_plan.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q2_scenario_plan.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -112,8 +111,7 @@ def figure_safety_margin(margin_file: Path, fig_dir: Path) -> None:
     ax.set_ylabel("平均安全余量/(kWh/时段)")
     ax.set_title("安全余量集中在高价时段", fontsize=9.5)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.5)
-    for ext in ("pdf", "png"):
-        fig.savefig(fig_dir / f"q2_safety_margin.{ext}", bbox_inches="tight", facecolor="white")
+    fig.savefig(fig_dir / "q2_safety_margin.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -128,7 +126,7 @@ def main() -> None:
 
     root = Path(args.data_root) if args.data_root else q.project_root()
     out_dir = Path(args.out_dir) if args.out_dir else root / "src" / "outputs"
-    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "figure"
+    fig_dir = Path(args.figure_dir) if args.figure_dir else root / "src" / "tex" / "figure"
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     att = q.Attachment(root)

@@ -2,7 +2,7 @@
 
 运行：
     python src/py/make_q4_tables.py      # 读取 src/outputs/q4_3_summary.json、q4_2_summary.json 生成 tex
-    python src/py/plot_question4.py      # 生成 figure/q4_price_band、q4_3_cost、q4_2_cost
+    python src/py/plot_question4.py      # 生成 src/tex/figure 下的三张 PDF 图
 
 输出：
     src/tex/q4_tables.tex      （4-3 表 1/表 2）

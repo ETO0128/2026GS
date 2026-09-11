@@ -3,7 +3,7 @@
 按“一次一个因素”方式扫描（口径 A、selective 策略、全年 334 天），结果写入
 ``src/outputs/q3_sens.json`` 缓存，便于分批运行；每次运行都会重新生成
 ``src/outputs/q3_sensitivity_report.txt``、``src/tex/q3_sensitivity.tex``
-与插图 ``src/figure/q3_sensitivity.pdf/.png``。
+与插图 ``src/tex/figure/q3_sensitivity.pdf``。
 
 用法：
     python src/py/q3_sensitivity.py --factor cap --levels 0.6,0.8,1.2,1.5

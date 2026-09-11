@@ -1,7 +1,7 @@
 """问题三敏感性分析插图（论文用图）。
 
 运行：python src/py/plot_q3_sensitivity.py
-输出：src/figure/q3_sensitivity.pdf / .png
+输出：src/tex/figure/q3_sensitivity.pdf
 """
 from __future__ import annotations
 
@@ -59,10 +59,10 @@ def main() -> None:
         ax.set_xlabel(xlabel)
         ax.set_ylabel("全年费用相对变化/%")
         ax.grid(color="#E6E6E6", linewidth=0.6)
-    for ext in ("pdf", "png"):
-        fig.savefig(root / "src" / "figure" / f"q3_sensitivity.{ext}",
-                    bbox_inches="tight", facecolor="white")
-    print("图片已写入 src/figure/q3_sensitivity.pdf/.png")
+    figure_dir = root / "src" / "tex" / "figure"
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(figure_dir / "q3_sensitivity.pdf", bbox_inches="tight", facecolor="white")
+    print("图片已写入 src/tex/figure/q3_sensitivity.pdf")
 
 
 if __name__ == "__main__":
