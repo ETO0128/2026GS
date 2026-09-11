@@ -26,12 +26,20 @@ from question2_dispatch import (
     plan_two_stage_stochastic,
     simulate_fixed_plan,
 )
-from question2_forecast import ForecastConfig, ForecastResult, forecast_day, forecast_metrics
+from question2_forecast import (
+    ForecastConfig,
+    ForecastResult,
+    apply_conditional_residual_quantile,
+    forecast_day,
+    forecast_metrics,
+)
 from question2_scenarios import build_joint_residual_scenarios
 
 
 INITIAL_SOC_KWH = 6000.0
 OFFICIAL_START = date(2025, 2, 1)
+VALIDATION_END = date(2025, 2, 28)
+TEST_START = date(2025, 3, 1)
 SPECIFIED_DATES = (date(2025, 3, 20), date(2025, 6, 21), date(2025, 9, 23), date(2025, 12, 21))
 
 
@@ -101,6 +109,41 @@ def calibrate_stochastic_parameters(
     return min(candidates, key=lambda item: item[:3])[3], scores
 
 
+def calibrate_conditional_parameters(
+    data: YearData,
+    cold_start: ColdStartForecast,
+    base_config: Question2Config,
+    candidate_counts: tuple[int, ...] = (14, 28, 42),
+    candidate_decays: tuple[float, ...] = (0.90, 0.95, 0.98),
+) -> tuple[Question2Config, dict[str, float]]:
+    """Select residual-quantile parameters on February, after a January warm-up."""
+
+    validation_days = sum(item <= VALIDATION_END for item in data.dates)
+    validation_data = YearData(
+        dates=data.dates[:validation_days],
+        minute_of_day=data.minute_of_day.copy(),
+        price_yuan_per_kwh=data.price_yuan_per_kwh.copy(),
+        load_kw=data.load_kw[:validation_days].copy(),
+        pv_kw=data.pv_kw[:validation_days].copy(),
+    )
+    scores: dict[str, float] = {}
+    candidates: list[tuple[float, int, float, Question2Config]] = []
+    for count in candidate_counts:
+        for decay in candidate_decays:
+            forecast_config = replace(
+                base_config.forecast,
+                planning_method="conditional_residual",
+                residual_candidate_count=count,
+                residual_decay=decay,
+            )
+            config = replace(base_config, forecast=forecast_config)
+            result = run_question2(validation_data, config, cold_start)
+            score = evaluate_period(result.days, OFFICIAL_START, VALIDATION_END)["total_cost_yuan"]
+            scores[f"count={count},decay={decay:.2f}"] = score
+            candidates.append((score, count, abs(decay - 1.0), config))
+    return min(candidates, key=lambda item: item[:3])[3], scores
+
+
 def run_question2(data: YearData, config: Question2Config, cold_start: ColdStartForecast) -> YearResult:
     if config.planner not in {"deterministic", "stochastic"}:
         raise ValueError("planner must be deterministic or stochastic")
@@ -112,6 +155,8 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
     history_actual_pv: list[np.ndarray] = []
     history_load_residual: list[np.ndarray] = []
     history_pv_residual: list[np.ndarray] = []
+    history_point_net: list[np.ndarray] = []
+    history_net_residual: list[np.ndarray] = []
     for index, run_date in enumerate(data.dates):
         forecast = forecast_day(
             data,
@@ -120,6 +165,16 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
             cold_start_load_kw=cold_start.load_kw,
             cold_start_pv_kw=cold_start.pv_kw,
         )
+        point_net = forecast.load_kw - forecast.pv_kw
+        if config.forecast.planning_method == "conditional_residual" and history_dates:
+            forecast = apply_conditional_residual_quantile(
+                point_forecast=forecast,
+                decision_date=run_date,
+                history_dates=tuple(history_dates),
+                history_point_net_kw=np.stack(history_point_net),
+                history_residual_net_kw=np.stack(history_net_residual),
+                config=config.forecast,
+            )
         expected_emergency_cost = 0.0
         if config.planner == "stochastic" and history_dates:
             scenarios = build_joint_residual_scenarios(
@@ -168,6 +223,8 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
         history_actual_pv.append(data.pv_kw[index].copy())
         history_load_residual.append(data.load_kw[index] - forecast.load_kw)
         history_pv_residual.append(data.pv_kw[index] - forecast.pv_kw)
+        history_point_net.append(point_net.copy())
+        history_net_residual.append(data.load_kw[index] - data.pv_kw[index] - point_net)
         carried_soc = float(execution.soc_kwh[-1])
     metrics = evaluate_year(tuple(records))
     return YearResult(
@@ -177,6 +234,9 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
             "forecast_method": config.forecast.method,
             "planner": config.planner,
             "planning_quantile": config.forecast.planning_quantile,
+            "planning_method": config.forecast.planning_method,
+            "residual_candidate_count": config.forecast.residual_candidate_count,
+            "residual_decay": config.forecast.residual_decay,
             "scenario_count": config.scenario_count,
             "scenario_decay": config.scenario_decay,
             "execution_strategy": "fixed_plan",
@@ -186,21 +246,25 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
     )
 
 
-def evaluate_year(days: tuple[DailyRecord, ...]) -> dict[str, float]:
-    if not days:
+def evaluate_period(
+    days: tuple[DailyRecord, ...],
+    start: date | None = None,
+    end: date | None = None,
+) -> dict[str, float]:
+    selected = tuple(day for day in days if (start is None or day.date >= start) and (end is None or day.date <= end))
+    if not selected:
         raise ValueError("At least one daily record is required")
-    official = tuple(day for day in days if day.date >= OFFICIAL_START) or days
-    actual_load = np.stack([day.actual_load_kw for day in official])
-    actual_pv = np.stack([day.actual_pv_kw for day in official])
-    predicted_load = np.stack([day.forecast.load_kw for day in official])
-    predicted_pv = np.stack([day.forecast.pv_kw for day in official])
+    actual_load = np.stack([day.actual_load_kw for day in selected])
+    actual_pv = np.stack([day.actual_pv_kw for day in selected])
+    predicted_load = np.stack([day.forecast.load_kw for day in selected])
+    predicted_pv = np.stack([day.forecast.pv_kw for day in selected])
     load_metrics = forecast_metrics(actual_load, predicted_load)
     pv_metrics = forecast_metrics(actual_pv, predicted_pv)
     net_metrics = forecast_metrics(actual_load - actual_pv, predicted_load - predicted_pv)
-    emergency = float(sum(np.sum(day.execution.emergency_kwh) for day in official))
-    planned_cost = float(sum(day.plan.planned_cost_yuan for day in official))
-    emergency_cost = float(sum(day.execution.emergency_cost_yuan for day in official))
-    curtailment = float(sum(np.sum(day.execution.curtailment_kwh) for day in official))
+    emergency = float(sum(np.sum(day.execution.emergency_kwh) for day in selected))
+    planned_cost = float(sum(day.plan.planned_cost_yuan for day in selected))
+    emergency_cost = float(sum(day.execution.emergency_cost_yuan for day in selected))
+    curtailment = float(sum(np.sum(day.execution.curtailment_kwh) for day in selected))
     return {
         "load_mae_kw": load_metrics["mae"],
         "load_rmse_kw": load_metrics["rmse"],
@@ -211,21 +275,28 @@ def evaluate_year(days: tuple[DailyRecord, ...]) -> dict[str, float]:
         "net_mae_kw": net_metrics["mae"],
         "net_rmse_kw": net_metrics["rmse"],
         "net_bias_kw": net_metrics["bias"],
-        "planned_purchase_kwh": float(sum(np.sum(day.plan.grid_kwh) for day in official)),
+        "planned_purchase_kwh": float(sum(np.sum(day.plan.grid_kwh) for day in selected)),
         "planned_cost_yuan": planned_cost,
         "emergency_purchase_kwh": emergency,
         "emergency_cost_yuan": emergency_cost,
-        "scenario_expected_emergency_cost_yuan": float(sum(day.expected_emergency_cost_yuan for day in official)),
+        "scenario_expected_emergency_cost_yuan": float(sum(day.expected_emergency_cost_yuan for day in selected)),
         "total_cost_yuan": planned_cost + emergency_cost,
-        "charge_kwh": float(sum(np.sum(day.execution.charge_kwh) for day in official)),
-        "discharge_kwh": float(sum(np.sum(day.execution.discharge_kwh) for day in official)),
+        "charge_kwh": float(sum(np.sum(day.execution.charge_kwh) for day in selected)),
+        "discharge_kwh": float(sum(np.sum(day.execution.discharge_kwh) for day in selected)),
         # In fixed-plan settlement this is total surplus energy, not pure PV
         # curtailment, because an over-purchased grid plan can also contribute.
         "surplus_energy_kwh": curtailment,
-        "emergency_event_count": float(sum(len(compress_emergency_events(day.execution.emergency_kwh)) for day in official)),
-        "soc_min_kwh": float(min(np.min(day.execution.soc_kwh) for day in official)),
-        "soc_max_kwh": float(max(np.max(day.execution.soc_kwh) for day in official)),
+        "emergency_event_count": float(sum(len(compress_emergency_events(day.execution.emergency_kwh)) for day in selected)),
+        "soc_min_kwh": float(min(np.min(day.execution.soc_kwh) for day in selected)),
+        "soc_max_kwh": float(max(np.max(day.execution.soc_kwh) for day in selected)),
     }
+
+
+def evaluate_year(days: tuple[DailyRecord, ...]) -> dict[str, float]:
+    if not days:
+        raise ValueError("At least one daily record is required")
+    official = tuple(day for day in days if day.date >= OFFICIAL_START) or days
+    return evaluate_period(official)
 
 
 def _copy_row_style(sheet, source_row: int, target_row: int, max_column: int) -> None:
@@ -448,7 +519,13 @@ def plot_question2(output_directory: Path, result: YearResult) -> tuple[Path, Pa
         predicted_net = record.forecast.load_kw - record.forecast.pv_kw
         axis.plot(hours, actual_net, color="#1f4e79", linewidth=1.2, label="实际净负荷")
         axis.plot(hours, predicted_net, color="#70ad47", linewidth=1.0, linestyle="--", label="点预测")
-        axis.plot(hours, record.forecast.planning_net_kw, color="#c55a11", linewidth=1.0, label="80%分位计划曲线")
+        axis.plot(
+            hours,
+            record.forecast.planning_net_kw,
+            color="#c55a11",
+            linewidth=1.0,
+            label="条件残差80%分位曲线",
+        )
         axis.set_title(run_date.strftime("%Y-%m-%d"))
         axis.set_xlim(0, 24)
         axis.grid(alpha=0.25)
@@ -499,11 +576,21 @@ def main() -> None:
     parser.add_argument("--decay", type=float, default=0.95)
     parser.add_argument("--candidate-count", type=int, default=14)
     parser.add_argument("--quantile", type=float, default=0.80)
+    parser.add_argument(
+        "--planning-method",
+        choices=("historical_net", "conditional_residual"),
+        default="conditional_residual",
+    )
+    parser.add_argument("--residual-window", type=int, default=90)
+    parser.add_argument("--residual-count", type=int, default=28)
+    parser.add_argument("--residual-decay", type=float, default=0.95)
+    parser.add_argument("--reserve", type=float, default=6000.0)
     parser.add_argument("--planner", choices=("deterministic", "stochastic"), default="deterministic")
     parser.add_argument("--scenario-count", type=int, default=14)
     parser.add_argument("--scenario-decay", type=float, default=0.95)
     parser.add_argument("--scenario-window", type=int, default=90)
     parser.add_argument("--calibrate-scenarios", action="store_true")
+    parser.add_argument("--calibrate-conditional", action="store_true")
     parser.add_argument("--write-results", action="store_true")
     parser.add_argument("--plots", action="store_true")
     parser.add_argument("--compare", action="store_true")
@@ -517,8 +604,13 @@ def main() -> None:
             lambda_load=args.decay,
             lambda_pv=args.decay,
             planning_quantile=args.quantile,
+            planning_method=args.planning_method,
+            residual_window_days=args.residual_window,
+            residual_candidate_count=args.residual_count,
+            residual_decay=args.residual_decay,
         ),
         planner=args.planner,
+        reserve_kwh=args.reserve,
         scenario_count=args.scenario_count,
         scenario_decay=args.scenario_decay,
         scenario_window_days=args.scenario_window,
@@ -531,6 +623,14 @@ def main() -> None:
             print(f"january_calibration[{name}]={score:.6f}")
         print(f"selected_scenario_count={config.scenario_count}")
         print(f"selected_scenario_decay={config.scenario_decay:.2f}")
+    if args.calibrate_conditional:
+        if config.forecast.planning_method != "conditional_residual":
+            parser.error("--calibrate-conditional requires --planning-method conditional_residual")
+        config, calibration_scores = calibrate_conditional_parameters(data, cold_start, config)
+        for name, score in calibration_scores.items():
+            print(f"february_validation[{name}]={score:.6f}")
+        print(f"selected_residual_count={config.forecast.residual_candidate_count}")
+        print(f"selected_residual_decay={config.forecast.residual_decay:.2f}")
     result = run_question2(data, config, cold_start)
     print(f"simulated_days={len(result.days)} official_days={len(result.official_days)}")
     for key, value in result.metrics.items():

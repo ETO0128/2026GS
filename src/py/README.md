@@ -44,9 +44,18 @@ src/附件5/result1.xlsx
 继承上一日实际结束值；全天计划购电一旦确定便不再修改，供电缺口按同时段正常电价的
 5 倍计入紧急购电。
 
-正式基线采用最近七日的负荷、光伏点预测，并依据紧急购电倍率对应的报童模型临界分位
-数，以历史净负荷的 80% 经验分位曲线制定风险修正后的购电计划。程序还实现了昨日同
-期、星期类型以及“日历分组与形状筛选后指数衰减”的相似日预测，用于同口径消融比较。
+正式方案采用最近七日的负荷、光伏点预测，再从此前 90 天中选择与目标点预测曲线最
+相似的历史状态日，以 `similarity * lambda ** age_days` 加权净负荷预测残差。点预测与
+残差的 80% 加权分位数组合成风险修正计划曲线。1 月用于热启动，2 月验证集从候选
+样本数 14、28、42 和衰减系数 0.90、0.95、0.98 中选得 42 和 0.95；3--12 月只进行
+锁定测试。程序仍保留历史净需求分位数、昨日同期、星期类型及相似日预测用于消融比较。
+
+复现条件残差参数选择和终端 SOC 敏感性分析：
+
+```powershell
+python src/py/question2.py --forecast seven_day --planning-method conditional_residual --calibrate-conditional
+python src/py/question2_validation.py
+```
 
 随机规划实验保留同一历史日的完整 144 点负荷与光伏残差，先按季节、星期类型和曲线
 相似度筛选场景，再以 `similarity * lambda ** age_days` 确定场景概率。第一阶段共同决定
@@ -57,8 +66,8 @@ src/附件5/result1.xlsx
 python src/py/question2.py --forecast seven_day --planner stochastic --calibrate-scenarios
 ```
 
-当前数据上校准得到 28 个场景和 `lambda=0.90`。该方案降低了紧急购电费用，但全年
-总费用高于 80% 分位基线，因此暂不写入正式 `result2.xlsx`，仅作为风险消融保留。
+当前数据上校准得到 28 个场景和 `lambda=0.90`。该方案降低了紧急购电费用，但总费用
+高于条件残差分位数方案，因此不写入正式 `result2.xlsx`，仅作为风险对照保留。
 
 在项目根目录运行：
 

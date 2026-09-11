@@ -169,9 +169,11 @@ $0{:}00,0{:}10,\ldots,23{:}50$ 的状态递推顺序。问题一的输入和调�
 
 \subsection{负荷与光伏预测}
 
-对问题二的全年数据采用扩展窗口顺序预测\cite{hyndman2021}。设第 $d$ 日决策时能够使用的历史日集合为
+对问题二的全年数据采用扩展窗口顺序预测。设第 $d$ 日决策时能够使用的历史日集合为
 $\mathcal H_d=\{1,2,\ldots,d-1\}$，任何预测量均不得访问第 $d$ 日及其后的真实数据。
-将 1 月作为状态和预测的热启动区间，正式统计范围为 2 月 1 日至 12 月 31 日。
+该信息划分符合滚动预测起点评价原则\cite{hyndman2021,tashman2000}。将 1 月作为状态与
+残差的热启动区间，2 月仅用于选择模型参数，参数确定后在 3--12 月进行锁定测试；题目
+要求的 2--12 月结果表则使用同一组已选参数顺序生成。
 
 为建立稳定且可解释的基准，负荷与光伏分别采用最近七个可用历史日的同一时段均值：
 \begin{equation}
@@ -180,18 +182,34 @@ $\mathcal H_d=\{1,2,\ldots,d-1\}$，任何预测量均不得访问第 $d$ 日及
   \quad m_d=\min(7,d-1).
   \label{eq:q2-seven-day}
 \end{equation}
-同时构造“工作日类型和季节分组、曲线形状筛选、时间指数衰减”的相似日对照。若
-$C_d$ 为只含历史日的候选集合，则
+记点预测净负荷为 $\widehat N_{d,t}=\widehat L_{d,t}-\widehat P^{\mathrm{pv}}_{d,t}$，
+历史日 $j$ 在时段 $t$ 的因果预测残差为
+$\varepsilon^N_{j,t}=L_{j,t}-P^{\mathrm{pv}}_{j,t}-\widehat N_{j,t}$。条件残差建模可以
+将既有点预测与残差分布组合为概率预测\cite{wang2018}。据此，本文从目标日前 90 天
+中，按照历史点预测曲线与 $\widehat N_{d,1:T}$ 的距离选取 $K$ 个相似状态日，并定义
+权重
 \begin{equation}
-  \widehat y_{d,t}=
-  \frac{\sum_{j\in C_d}s_{d,j}\lambda^{d-j}y_{j,t}}
-       {\sum_{j\in C_d}s_{d,j}\lambda^{d-j}},
-  \label{eq:q2-similar}
+  \omega_{d,j}=\frac{s_{d,j}\lambda^{d-j}}
+  {\sum_{k\in C_d}s_{d,k}\lambda^{d-k}},
+  \qquad j\in C_d,
+  \label{eq:q2-residual-weight}
 \end{equation}
-其中 $s_{d,j}$ 为基于上一日已观测曲线计算的相似度，$\lambda=0.95$。相似日的日历
-筛选和曲线距离构造参考了负荷与光伏预测中的相似日方法\cite{mandal2006,acharya2020}。该模型用于检验
-“先分组筛选、再指数衰减”的有效性，而正式方案依据统一的全年事后评价选择更稳定的
-七日基准。预测性能采用 MAE、RMSE 与 Bias 评价，并同时报告负荷、光伏和净负荷误差。
+其中 $s_{d,j}$ 为曲线相似度，$\lambda^{d-j}$ 用于降低较早残差的影响。指数加权分位数
+能够适应分布随时间变化的预测问题\cite{taylor2007}。于是风险修正净负荷为
+\begin{equation}
+  \widetilde q_{d,t}=\widehat N_{d,t}
+  +\inf\left\{x:\sum_{j\in C_d}\omega_{d,j}
+  \mathbb I(\varepsilon^N_{j,t}\leq x)\geq 0.8\right\}.
+  \label{eq:q2-conditional-quantile}
+\end{equation}
+由此，负荷与光伏点预测通过 $\widehat N_{d,t}$ 直接进入计划曲线，历史残差只负责刻画
+预测不确定性。2 月验证结果从 $K\in\{14,28,42\}$、
+$\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95$。
+
+此外，构造“星期类型与季节分组、曲线形状筛选、时间指数衰减”的相似日点预测作为
+对照。相似日的日历筛选和距离度量参考相关负荷与光伏预测研究
+\cite{mandal2006,acharya2020}。预测性能采用 MAE、RMSE 与 Bias 评价，并同时报告
+负荷、光伏和净负荷误差。
 
 \subsection{电价数据处理}
 
@@ -345,10 +363,12 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
   C(g)=p_tg+5p_t\,\mathbb E[(D-g)^+].
   \label{eq:q2-newsvendor}
 \end{equation}
-由一阶条件可得 $\Pr(D>g)=1/5$，故最优计划对应净需求的 80\% 条件分位数。本文在
-每个时段取最近七日历史净负荷功率的 80\% 经验分位数 $\widetilde q_{d,t}$，并令
-$q_{d,t}=\widetilde q_{d,t}\Delta t$，将其作为含储能联合优化的风险修正需求电量。
-该分位数结论用于确定风险水平，而不是用全年数据搜索参数。
+由一阶条件可得 $\Pr(D>g)=1/5$，故该单时段简化问题的最优计划对应净需求的 80\%
+条件分位数。本文据此确定风险水平，并令
+$q_{d,t}=\widetilde q_{d,t}\Delta t$，其中 $\widetilde q_{d,t}$ 由
+式~\eqref{eq:q2-conditional-quantile} 给出。需要指出的是，储能状态转移使相邻时段
+决策相互耦合，因此 80\% 临界分位数不再是完整多时段问题的解析最优解；本文将其作为
+具有明确经济含义的风险修正，并通过顺序样本外费用检验其有效性。
 
 以 $q_{d,t}^{+}=\max(q_{d,t},0)$ 和
 $q_{d,t}^{-}=\max(-q_{d,t},0)$ 分别表示等效负荷与等效光伏，日前模型为
@@ -362,8 +382,10 @@ $q_{d,t}^{-}=\max(-q_{d,t},0)$ 分别表示等效负荷与等效光伏，日前�
   \label{eq:q2-plan-balance}
 \end{equation}
 并满足式~\eqref{eq:q1-soc}--\eqref{eq:q1-flow-bound} 所示储能约束。每日初始状态满足
-$e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界，从而兼顾
-跨日连续性和下一日供电能力。
+$e_{d,0}=e_{d-1,T}$。有限时域优化若不约束终端状态，容易低估日末储电量对后续运行的
+价值；微网储能研究通常利用终端 SOC 约束维持下一调度周期的可用性
+\cite{jayawardana2019}。因此，以题设初始储电量为基准设置
+$e_{d,T}\ge\SI{6000}{kWh}$，并通过不同终端储备水平的敏感性分析检验该设定。
 
 \subsection{优化与控制策略}
 
@@ -387,44 +409,59 @@ $e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界
 最为清晰；紧急购电只弥补实时供需缺口，不参与电价套利。每一日结算后均复核母线能量
 平衡、SOC 递推、容量与功率边界，并将实际日末 SOC 传递至下一日。
 
-为检验整日误差结构的价值，进一步构造两阶段随机线性规划。微网日前计划与不确定性
-运行分层的处理参考随机模型预测控制的调度框架\cite{parisio2016}；考虑到天气可能同时
-影响负荷和光伏，场景必须保留二者相关性\cite{liu2017}。对任一历史日 $j$，将其负荷
-预测残差 $\varepsilon^L_{j,1:T}$ 与光伏预测残差
-$\varepsilon^{\mathrm{pv}}_{j,1:T}$ 成对保留，并叠加至目标日点预测：
+\subsection{联合残差场景与两阶段随机优化}
+
+上述分位数模型能够反映各时段净需求的边际分布，但没有显式描述日内预测误差的时序
+相关性，也难以保留负荷误差与光伏误差之间的相关关系。若逐时独立抽取误差，可能产生
+不符合实际天气演化过程的场景，进而影响全天计划的风险估计。为此，本文进一步构造
+整日联合残差场景，并建立两阶段随机线性规划作为基准模型的对照方案。日前计划与实时
+补救的分层方式参考微网随机模型预测控制框架\cite{parisio2016}，源荷预测误差的联合
+刻画则参考相关不确定性下的微网日前调度研究\cite{liu2017}。
+
+对于目标日 $d$，首先仅利用决策时刻以前的数据得到负荷与光伏点预测
+$\widehat L_{d,1:T}$ 和 $\widehat P^{\mathrm{pv}}_{d,1:T}$。对每个历史日 $j<d$，将当日
+144 个时段的负荷预测残差 $\varepsilon^L_{j,1:T}$ 与光伏预测残差
+$\varepsilon^{\mathrm{pv}}_{j,1:T}$ 作为一个不可拆分的残差对，并叠加至目标日点预测：
 \begin{equation}
   L_{d,t}^{(j)}=\max(0,\widehat L_{d,t}+\varepsilon^L_{j,t}),\qquad
   P_{d,t}^{(j)}=\max(0,\widehat P^{\mathrm{pv}}_{d,t}
   +\varepsilon^{\mathrm{pv}}_{j,t}).
   \label{eq:q2-joint-scenario}
 \end{equation}
-候选日先按季节与星期类型分组，再按完整日曲线距离筛选。时间指数衰减直接进入场景
-概率，而不再只用于展示预测曲线：
+候选集合 $C_d$ 由历史窗口内与目标日具有相同季节和星期类型的日期组成，再依据完整日
+曲线距离计算相似度 $s_{d,j}$ 并筛选代表性场景。考虑到较近日期的运行状态通常更能
+反映当前季节、设备和用电行为，采用指数衰减因子 $\lambda^{d-j}$ 降低陈旧样本的权重。
+场景 $j$ 的归一化概率定义为
 \begin{equation}
   \pi_{d,j}=\frac{s_{d,j}\lambda^{d-j}}
   {\sum_{k\in C_d}s_{d,k}\lambda^{d-k}}.
   \label{eq:q2-scenario-weight}
 \end{equation}
-第一阶段共同决定 $g_{d,t},c_{d,t},d_{d,t}$ 和 SOC 轨迹；第二阶段针对每个场景决定
-紧急购电 $h_{d,t}^{(j)}$ 与剩余电量 $w_{d,t}^{(j)}$，目标函数为
+其中，$0<\lambda\leq 1$；$\lambda$ 越小，模型越强调近期样本。该概率同时综合曲线
+相似性与时间邻近性，并通过期望紧急购电费用影响全天计划决策。
+
+两阶段模型的第一阶段在场景揭示前统一确定计划购电量 $g_{d,t}$、储能充放电量
+$c_{d,t},d_{d,t}$ 及 SOC 轨迹；第二阶段在各场景下分别计算紧急购电量
+$h_{d,t}^{(j)}$ 与剩余电量 $w_{d,t}^{(j)}$。在各场景均满足功率平衡的条件下，目标为
 \begin{equation}
   \min\sum_t p_tg_{d,t}
   +5\sum_{j\in C_d}\pi_{d,j}\sum_t p_th_{d,t}^{(j)}.
   \label{eq:q2-stochastic-objective}
 \end{equation}
-场景数与衰减系数仅利用 1 月顺序运行费用，从
-$K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据只作独立
-事后评价。由此选得 $K=28,\lambda=0.90$，保证指数衰减确实参与优化决策，同时避免
-以正式评价区间反向调参。
+式~\eqref{eq:q2-stochastic-objective} 的第一项为确定性的计划购电费，第二项为不同源荷
+场景下紧急购电费的期望值。为避免利用评价期信息调参，场景数 $K$ 与衰减系数
+$\lambda$ 仅根据 1 月的顺序运行费用，从 $K\in\{7,14,28\}$、
+$\lambda\in\{0.90,0.95,0.98\}$ 中选取；2--12 月数据仅用于独立评价。最终得到
+$K=28,\lambda=0.90$。
 
 \subsection{结果与分析}
 
 正式统计期内，负荷、光伏和净负荷的 RMSE 分别为
 \SI{955.9245}{kW}、\SI{303.8577}{kW} 和 \SI{1006.5251}{kW}。计划购电量为
-\SI{24714266.9064}{kWh}，计划购电费为 \num{15306749.50} 元；紧急购电量为
-\SI{417720.3571}{kWh}，对应费用为 \num{1635037.49} 元，故总费用为
-\num{16941787.00} 元。紧急购电费占总费用的 \SI{9.65}{\percent}，说明 80\% 分位
-修正显著压低了高价缺电风险，但仍保留一定紧急购电以避免过度计划。
+\SI{24999506.8806}{kWh}，计划购电费为 \num{15512081.63} 元；紧急购电量为
+\SI{346770.9807}{kWh}，对应费用为 \num{1350104.25} 元，故总费用为
+\num{16862185.88} 元。紧急购电费占总费用的 \SI{8.01}{\percent}，表明条件残差
+分位数在控制缺电风险的同时，没有造成过高的计划购电支出。
 
 \begin{table}[H]
   \centering
@@ -435,7 +472,8 @@ $K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据�
     预测方案 & 计划购电费/万元 & 紧急购电费/万元 & 总费用/万元 \\
     \midrule
     昨日同期 & 1220.74 & 1061.04 & 2281.78 \\
-    最近七日均值 & 1530.67 & 163.50 & 1694.18 \\
+    七日均值与历史净需求分位数 & 1530.67 & 163.50 & 1694.18 \\
+    七日均值与条件残差分位数 & 1551.21 & 135.01 & 1686.22 \\
     同星期类型均值 & 1652.69 & 367.03 & 2019.72 \\
     相似日指数衰减 & 1504.59 & 342.72 & 1847.32 \\
     联合残差随机规划 & 1568.01 & 147.34 & 1715.35 \\
@@ -443,14 +481,52 @@ $K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据�
   \end{tabular}
 \end{table}
 
-\tabref{tab:q2-comparison} 表明，点预测误差并非唯一决定因素：昨日同期计划费用最低，
-但因低估风险产生高额紧急购电；相似日指数衰减较昨日同期显著改善，却仍不及最近七日
-基准稳定。联合残差随机规划将紧急购电费由 \num{163.50} 万元降至 \num{147.34} 万元，
-降幅约为 \SI{9.9}{\percent}，但计划购电费增加 \SI{2.4}{\percent}，剩余电量亦增加
-约 \SI{8.7}{\percent}，使总费用反而提高 \SI{1.25}{\percent}。因此，本文不因方法
-复杂而强行替换基线，而将全年总费用最低的最近七日分位数方案作为正式结果，将联合
-残差随机规划保留为风险偏好消融。四个季节代表日的实际净负荷、点预测及风险修正曲线见
+由\tabref{tab:q2-comparison}可知，日前方案的经济性不仅取决于点预测误差，还取决于其
+对低估风险的控制能力。与直接计算历史净需求分位数相比，条件残差方法将紧急购电费
+降低 \num{28.49} 万元，虽然计划购电费增加 \num{20.54} 万元，总费用仍降低
+\num{7.96} 万元。该结果说明“点预测加条件残差分位数”改善了预测模型与调度模型之间
+的衔接。联合残差随机规划进一步降低了紧急购电费用，但计划购电偏于保守，故其总费用
+仍高于条件残差分位数方案。本文据此采用后者生成正式结果，并将随机规划保留为风险
+控制效果的对照。四个季节代表日的实际净负荷、点预测及风险修正曲线见
 \figref{fig:q2-specified}。
+
+为区分参数选择与最终评价，\tabref{tab:q2-holdout} 分别给出 2 月验证期和 3--12 月
+锁定测试期的总费用。条件残差方案在验证期和测试期分别降低 \SI{0.63}{\percent} 和
+\SI{0.45}{\percent}，改进方向一致，因而并非由正式测试期反向选型得到。
+
+\begin{table}[H]
+  \centering
+  \caption{问题二验证期与锁定测试期的总费用比较}
+  \label{tab:q2-holdout}
+  \begin{tabular}{lrr}
+    \toprule
+    方案 & 2 月验证期/万元 & 3--12 月测试期/万元 \\
+    \midrule
+    历史净需求分位数 & 149.74 & 1544.44 \\
+    条件残差加权分位数 & 148.80 & 1537.42 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+终端 SOC 敏感性结果见\tabref{tab:q2-terminal-soc}。当日末储电量下界由
+\SI{4000}{kWh} 提高至 \SI{8000}{kWh} 时，总费用极差仅为 \num{0.62} 万元，约占
+基准费用的 \SI{0.037}{\percent}。因此，保留与题设初始储电量一致的
+\SI{6000}{kWh} 不会实质改变主要结论。
+
+\begin{table}[H]
+  \centering
+  \caption{问题二终端储电量下界的敏感性分析}
+  \label{tab:q2-terminal-soc}
+  \begin{tabular}{rrrr}
+    \toprule
+    终端储电量下界/kWh & 计划购电费/万元 & 紧急购电费/万元 & 总费用/万元 \\
+    \midrule
+    4000 & 1551.60 & 135.01 & 1686.61 \\
+    6000 & 1551.21 & 135.01 & 1686.22 \\
+    8000 & 1550.98 & 135.01 & 1685.99 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \begin{figure}[H]
   \centering
@@ -467,10 +543,10 @@ $K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据�
     \toprule
     日期 & 计划购电费/元 & 紧急购电费/元 & 总费用/元 \\
     \midrule
-    3 月 20 日 & 41595.17 & 3326.95 & 44922.11 \\
-    6 月 21 日 & 48872.60 & 0.00 & 48872.60 \\
-    9 月 23 日 & 41182.86 & 10778.75 & 51961.61 \\
-    12 月 21 日 & 60876.04 & 4122.38 & 64998.42 \\
+    3 月 20 日 & 40984.71 & 3711.92 & 44696.63 \\
+    6 月 21 日 & 49978.01 & 0.00 & 49978.01 \\
+    9 月 23 日 & 42547.72 & 5587.68 & 48135.41 \\
+    12 月 21 日 & 62288.82 & 2826.94 & 65115.76 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -578,6 +654,22 @@ $K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据�
   photovoltaic power and load uncertainties on grid-connected microgrid day-ahead
   scheduling[J]. IET Generation, Transmission \& Distribution, 2017, 11(14):
   3620--3627.
+
+  \bibitem{wang2018} Y. Wang, Q. Chen, N. Zhang, et al. Conditional residual
+  modeling for probabilistic load forecasting[J]. IEEE Transactions on Power
+  Systems, 2018, 33(6): 7327--7330.
+
+  \bibitem{taylor2007} J. W. Taylor. Forecasting daily supermarket sales using
+  exponentially weighted quantile regression[J]. European Journal of Operational
+  Research, 2007, 178(1): 154--167.
+
+  \bibitem{tashman2000} L. J. Tashman. Out-of-sample tests of forecasting
+  accuracy: An analysis and review[J]. International Journal of Forecasting,
+  2000, 16(4): 437--450.
+
+  \bibitem{jayawardana2019} A. Jayawardana, A. P. Agalgaonkar, D. A. Robinson,
+  et al. Optimisation framework for the operation of battery storage within
+  solar-rich microgrids[J]. IET Smart Grid, 2019, 2(4): 504--513.
 \end{thebibliography}
 
 \newpage

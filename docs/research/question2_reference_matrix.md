@@ -11,6 +11,10 @@
 | Similar days can be selected by calendar and curve similarity | Mandal, Senjyu, Urasaki and Funabashi (2006) [12]；PV 侧补充 Acharya, Wi and Lee (2020) [13] | [12] 用带权 Euclidean 距离寻找历史相似日，并按天气/季节差异进行短期负荷预测；[13] 的题名和方法对象表明可对小规模 PV 做日前的相似日检测及选择性天气变量。 | **后续创新阶段采用：** 在历史日期中先按工作日、月份/季节等日历条件筛选，再以完整日曲线距离排序；负荷与 PV 分别选择候选数及衰减参数。 | [12] 是数小时负荷 ANN 案例，并不验证本题的指数衰减权重或 PV 规则；[13] 是 PV 方法补充。二者均不能替代严格的滚动验证、也不能使用未来天气/实测。 |
 | Day-ahead schedules and real-time controls can be separated | Parisio, Rikos and Glielmo (2016) [14] | 该同行评审微网案例明确以 stochastic MPC 的在线优化管理运行，并列出 two-stage stochastic programming 和 MILP 为关键词；它提供“计划层—随信息到达的在线控制层”这一架构先例。 | **基准阶段采用：** 0:00 固定普通购电计划；日内执行只可按已观测源荷调整储能并以紧急购电补缺。 | 文献不是本赛题结算规则，且不证明“计划购电不得修改”这一题目约束；本实现须独立审计信息边界与能量平衡。 |
 | Whole-day paired residual scenarios preserve source/load dependence | Liu *et al.* (2017) [15] | 论文针对日前微网调度同时纳入 PV 与负荷不确定性，并明确分析二者的相关性（天气会共同影响二者）；其模型是相关不确定性的 P-OPF。 | **后续创新阶段采用：** 从同一历史来源日联合抽取 144 点负荷、PV 残差，保留来源日期、曲线内连续结构和源荷配对，供情景 LP 使用。 | [15] 采用相关性与两点估计，不提出“整日配对残差重抽样”；本项目的经验场景生成是为保留该依赖关系作出的实现选择，须与逐时独立抽样消融比较。 |
+| Point forecasts can be combined with conditional residual quantiles | Wang, Chen, Zhang and Wang (2018) [19] | 论文先生成点负荷预测，再估计以点预测等特征为条件的残差分布，最后将二者组合为概率预测。 | **正式方案采用：** 以七日均值给出源荷点预测，以相似历史状态日的净负荷预测残差估计 80% 条件分位数，使预测结果直接进入计划曲线。 | 原文使用量化回归，不等同于本文的非参数加权经验分位数；候选距离、窗口和权重仍需独立验证。 |
+| Exponential weights can be used for time-varying quantile forecasts | Taylor (2007) [20] | 论文提出指数加权分位数回归，并将其解释为对累积分布函数的指数平滑，以处理位置、方差和形状随时间变化的分布。 | **正式方案采用：** 候选残差权重取“曲线相似度 × 时间指数衰减”，再计算逐时加权经验分位数。 | 研究对象为零售需求，不直接确定微网数据的衰减系数；本题的 λ 由 2 月验证期选择。 |
+| Model selection and final evaluation should use separate chronological periods | Tashman (2000) [21] | 论文系统讨论时间序列样本外检验、滚动起点、数据划分和模型选择，强调多起点样本外评价。 | **正式方案采用：** 1 月热启动，2 月选择 K 与 λ，3--12 月锁定测试；所有时期内部继续按日滚动更新历史。 | 单个验证月可能受季节影响，因而同时报告锁定测试表现和全年分月结果，不把测试期用于回调参数。 |
+| Terminal SOC constraints reduce finite-horizon end effects | Jayawardana *et al.* (2019) [22] | 微网储能案例明确使用终端 SOC 约束，使控制时域结束时达到预定储能水平，并比较不同终端 SOC 对费用的影响。 | **正式方案采用：** 以题设初始储电量 6000 kWh 为日末安全储备，并对 4000、6000、8000 kWh 做敏感性分析。 | 文献不规定本题应取 6000 kWh；该值来自题设初始状态，合理性由本题敏感性结果而非文献数值支撑。 |
 | CVaR can be represented in an optimization model | Rockafellar and Uryasev (2000) [16]（原论文；作者维护发表列表亦列出该文） | 原论文给出以阈值和正部损失辅助变量表示 CVaR 的优化构造，使有限离散情景下的尾部损失项可线性化。 | **后续创新阶段采用：** 在两阶段随机 LP 的紧急购电费用上加 Rockafellar--Uryasev epigraph；置信水平、风险权重均由仅含过去日的滚动验证选取。 | 论文的金融损失例子不校准微网的置信水平、权重或情景分布；CVaR 是风险扩展/消融，不是首个确定性基准目标。 |
 | Stored energy has a cross-day opportunity value | Jiang and Powell (2015) [17] | 该 INFORMS 论文把电池状态置于逐时竞价的 approximate dynamic programming 决策中，学习并使用未来价值近似；因此储电的价值不只限于当前时段。 | **后续创新阶段采用：** 用截至决策日前的运行结果拟合 SOC 的分段线性终端价值；历史不足时回退固定安全储备。 | [17] 研究的是小时级实时市场竞价，未给出本题“次日节省”拟合式或保证其凸性；网格、断点、符号与回退阈值均须由本项目滚动验证。 |
 
@@ -29,5 +33,5 @@
 
 ## 可用于 LaTeX 的书目信息
 
-对应条目已添加到 `src/tex/references.txt` 的 [11]--[18]。所有链接均为 DOI 落地页、\
+对应条目已添加到 `src/tex/references.txt` 的 [11]--[22]。所有链接均为 DOI 落地页、\
 作者维护页面或作者维护的在线教材；访问日期为 2026-09-11。
