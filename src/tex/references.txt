@@ -88,3 +88,47 @@ C 题建模依据与参考文献（IEEE 格式）
      in Proc. 2019 IEEE PES Innovative Smart Grid Technologies Europe
      (ISGT-Europe), Bucharest, Romania, 2019, pp. 1--5,
      doi: 10.1109/ISGTEurope.2019.8905538.
+
+三、问题二：预测、日前计划与不确定性调度
+
+[11] R. J. Hyndman and G. Athanasopoulos, “Time series cross-validation,”
+     in Forecasting: Principles and Practice, 3rd ed., §5.10. [Online].
+     Available: https://otexts.com/fpp3/tscv.html [Accessed: Sep. 11, 2026].
+
+[12] P. Mandal, T. Senjyu, N. Urasaki, and T. Funabashi, “A neural network
+     based several-hour-ahead electric load forecasting using similar days
+     approach,” International Journal of Electrical Power & Energy Systems,
+     vol. 28, no. 6, pp. 367--373, 2006,
+     doi: 10.1016/j.ijepes.2005.12.007.
+
+[13] S. K. Acharya, Y.-M. Wi, and J. Lee, “Day-ahead forecasting for
+     small-scale photovoltaic power based on similar day detection with
+     selective weather variables,” Electronics, vol. 9, no. 7, Art. no. 1117,
+     2020, doi: 10.3390/electronics9071117.
+
+[14] A. Parisio, E. Rikos, and L. Glielmo, “Stochastic model predictive
+     control for economic/environmental operation management of microgrids:
+     An experimental case study,” Journal of Process Control, vol. 43,
+     pp. 24--37, 2016, doi: 10.1016/j.jprocont.2016.04.008.
+
+[15] S. Liu, P. X. Liu, X. Wang, Z. Wang, and W. Meng, “Effects of correlated
+     photovoltaic power and load uncertainties on grid-connected microgrid
+     day-ahead scheduling,” IET Generation, Transmission & Distribution,
+     vol. 11, no. 14, pp. 3620--3627, 2017,
+     doi: 10.1049/iet-gtd.2017.0427.
+
+[16] R. T. Rockafellar and S. Uryasev, “Optimization of conditional
+     value-at-risk,” The Journal of Risk, vol. 2, no. 3, pp. 21--41, 2000.
+     [Online]. Available: https://uryasev.github.io/publications/
+     [Accessed: Sep. 11, 2026].
+
+[17] D. R. Jiang and W. B. Powell, “Optimal hour-ahead bidding in the
+     real-time electricity market with battery storage using approximate
+     dynamic programming,” INFORMS Journal on Computing, vol. 27, no. 3,
+     pp. 525--543, 2015, doi: 10.1287/ijoc.2015.0640.
+
+[18] M. Borunda, L. Conde-López, G. Ruiz-Chavarría, G. Lopez Lopez,
+     V. M. Alvarado, and E. de Jesús Carrera Avendaño, “Advances in similar
+     day methods for short-term load forecasting for power systems,”
+     Forecasting, vol. 8, no. 2, Art. no. 32, 2026,
+     doi: 10.3390/forecast8020032.
