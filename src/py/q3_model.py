@@ -257,19 +257,24 @@ def eval_seg(price, q, c, d, q_plan, scen_net, weights):
 
 # --------------------------------------------------------------------------- 单日仿真
 def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
-                 policy: str = "selective", tol: float = 1e-6, node_subset=None) -> dict:
+                 policy: str = "selective", tol: float = 1e-6, node_subset=None,
+                 price_plan=None) -> dict:
     """执行一天：0:00 计划 + 6:00/12:00/18:00 调整 + 实际结算。
 
     policy: "none" 不调整；"fixed" 固定调整；"selective" 仅当预期收益为正才调整
     node_subset: 允许使用的调整节点索引（默认 [1,2,3]），用于分析增减节点的影响
+    price_plan: 制定计划/调整时使用的电价（默认为实际电价 price）。问题四中若电价逐日波动
+        且建模时并未预先得知，可传入"因果价格预测"，此时决策按 price_plan 优化、
+        结算仍按实际价格 price 执行。
     """
+    price_plan = price if price_plan is None else price_plan
     l_act, v_act = att.load_kwh[i], att.pv_kwh[i]
     net_act = l_act - v_act
     nodes = [1, 2, 3] if node_subset is None else list(node_subset)
 
     l_fc, v_fc = forecast_full(att, f3, i, 0)
     scen, w = residual_scenarios(att, f3, i, 0, s_max)
-    plan = seg_lp(price, None, l_fc, v_fc, q2.E0_KWH, scen, w, "plan")
+    plan = seg_lp(price_plan, None, l_fc, v_fc, q2.E0_KWH, scen, w, "plan")
     q_plan = plan["q"].copy()
     q_cur, c_cur, d_cur = plan["q"].copy(), plan["c"].copy(), plan["d"].copy()
     e_cur = plan["e"].copy()
@@ -284,9 +289,9 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
         l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k])
         scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max)
         qp_seg = q_plan[j0:]
-        keep = eval_seg(price[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w)
+        keep = eval_seg(price_plan[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w)
         J_keep = keep["fee"] + keep["exp_emg_cost"]
-        adj = seg_lp(price[j0:], qp_seg, l_fc[j0:], v_fc[j0:], e_cur[j0], scen, w, "adjust")
+        adj = seg_lp(price_plan[j0:], qp_seg, l_fc[j0:], v_fc[j0:], e_cur[j0], scen, w, "adjust")
         J_adj = adj["fee"] + adj["exp_emg_cost"]
         take = (policy == "fixed") or (policy == "selective" and J_adj < J_keep - tol)
         if take:
