@@ -32,6 +32,22 @@ class Question1SolverTests(unittest.TestCase):
         self.assertAlmostEqual(solution.soc_kwh[0], INITIAL_SOC_KWH, places=5)
         self.assertAlmostEqual(solution.soc_kwh[-1], INITIAL_SOC_KWH, places=5)
 
+    def test_question1_regression_keeps_equal_terminal_soc(self) -> None:
+        """Question 1 retains its fixed 00:00 and 24:00 SOC contract."""
+
+        minutes = np.arange(0, 1440, SLOT_MINUTES, dtype=int)
+        data = Question1Data(
+            minute_of_day=minutes,
+            price_yuan_per_kwh=np.ones(144),
+            load_kw=np.full(144, 1000.0),
+            pv_kw=np.zeros(144),
+        )
+
+        result = solve_question1(data)
+
+        self.assertAlmostEqual(result.soc_kwh[0], 6000.0, places=6)
+        self.assertAlmostEqual(result.soc_kwh[-1], 6000.0, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()
