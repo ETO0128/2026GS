@@ -299,19 +299,205 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
 % TODO（问题一完善）：提取容量约束和功率约束的对偶变量，分析储能扩容与功率提升的
 % 边际经济价值，并据此完善工程结论。
 
-\section{问题二的预测误差调度模型}
+\section{问题二的日前计划与随机优化模型}
+\label{sec:q2}
 
-\subsection{日前计划与紧急购电机制}
+\subsection{信息结构与执行口径}
+\label{subsec:q2-info}
 
-% TODO：定义计划购电、实际供需缺口和五倍价格紧急购电。
+问题二中电价每天相同（附件\ 1），而小区负荷与光伏发电功率逐日变化（附件\ 2）；
+微网提供的电能不得低于小区实际负载，缺口须按交易时刻电价的 5 倍紧急购电，
+其余时段的购电费用均按\textbf{计划购电量}结算，即多购不退（"照付不议"）。
+因此每天 0:00 制定计划时，当日实际负荷与光伏尚未出现，只能依据此前已经发生的数据
+推断。与问题一"输入全部已知"的确定性调度相比，问题二的核心是把\textbf{预测误差}
+经"多购白付、少购五倍"这一不对称结算规则放大后的期望费用降到最低。
 
-\subsection{优化与控制策略}
+时间与单位沿用问题一的口径：10 分钟为一个时段，全天共 144 段；时间戳表示时段起点，
+附件中标记为 ``0:00+1'' 的周期数据映射至 0:00；功率乘 $\Delta t=1/6$ h 转换为电量。
+储能充放电量均按交流母线侧计量，充放电效率只出现在储能状态方程中\cite{gorman2024}。
+题目未要求问题二的日末储电量等于日初值，但附件\ 1 的负荷与光伏恰为附件\ 2 的逐时段
+平均值、且电价曲线逐日相同，日周期运行因而是自然且接近最优的基准。据此本文取
+$e_{144}=e_0=6000$ kWh 的日周期口径；数值试验也支持这一选择——若放开日末约束，
+模型会逐日把储电量压到下限、全年在低位运行，总费用反而高出 8804 元。
+严格的跨日衔接需要引入终端价值函数，可作为后续改进方向。
 
-% TODO：说明预测模型、基准优化器以及强化学习修正策略。
+实际执行阶段存在两种可辩护的口径，本文均给出结果。
+\textbf{口径 A}（严格按计划执行）：储能完全按计划动作，计划充电量亦须兑现，
+实际净负荷超出"计划购电量 $+$ 计划放电量 $-$ 计划充电量"的部分按 5 倍价紧急购电；
+\textbf{口径 B}（日内再调度）：计划购电量照付不议，储能按实际负荷与光伏在日内再调度
+以压低紧急购电。两者全年总费用相差 $1\,899\,610$ 元（11.4\%）。正文采用口径 A，
+与 \texttt{result2.xlsx} 中"充放电量"栏的含义一致；口径 B 作为乐观对照在
+第 \ref{subsec:q2-result} 节报告。
+
+\subsection{两阶段随机规划模型}
+\label{subsec:q2-sp}
+
+记时段 $t=1,\dots,144$，电价 $p_t$，负荷与光伏电量 $l_t,v_t$，母线侧充、放电量
+$c_t,d_t$，储电量 $e_t$。第一阶段（0:00，与场景无关）确定计划购电量 $g_t$、
+计划充放电 $\bar c_t,\bar d_t$、计划弃光 $\bar w_t$ 与计划储电量 $\bar e_t$；
+第二阶段在场景 $\omega\in\Omega$（概率 $\pi_\omega$）下确定实际充放电
+$c^\omega_t,d^\omega_t$、紧急购电量 $g^{\mathrm{em},\omega}_t$ 与过剩电量
+$y^\omega_t$。以期望费用最小为主目标、同时用条件风险价值（CVaR）控制尾部风险，
+模型为
+
+\begin{equation}
+  \min\ \sum_{\omega\in\Omega}\pi_\omega
+  \Big[\sum_{t=1}^{144} p_t g_t+5\sum_{t=1}^{144} p_t g^{\mathrm{em},\omega}_t\Big]
+  +\beta\Big(\eta+\frac{1}{1-\alpha}\sum_{\omega\in\Omega}\pi_\omega u_\omega\Big),
+  \label{eq:q2-obj}
+\end{equation}
+
+其中 $\alpha$ 为 CVaR 置信水平，$\beta\ge0$ 为风险权重（$\beta=0$ 即风险中性），
+$\eta$ 与 $u_\omega$ 为线性化辅助变量，满足
+$u_\omega\ge\sum_t p_tg_t+5\sum_t p_tg^{\mathrm{em},\omega}_t-\eta$ 且
+$u_\omega\ge0$~\cite{rockafellar2000}。约束包括计划层与场景层两套母线平衡和储能
+状态方程，
+
+\begin{align}
+  g_t+\hat v_t+\bar d_t&=\hat l_t+\bar c_t+\bar w_t, \label{eq:q2-bal1}\\
+  \bar e_{t+1}&=\bar e_t+\eta_c\bar c_t-\bar d_t/\eta_d, \label{eq:q2-soc1}\\
+  g_t+v^\omega_t+d^\omega_t+g^{\mathrm{em},\omega}_t
+   &=l^\omega_t+c^\omega_t+y^\omega_t, \label{eq:q2-bal2}\\
+  e^\omega_{t+1}&=e^\omega_t+\eta_c c^\omega_t-d^\omega_t/\eta_d, \label{eq:q2-soc2}
+\end{align}
+
+以及边界 $g_t\ge0$、$0\le\bar c_t,\bar d_t\le\bar c$、$0\le\bar w_t\le\hat v_t$、
+$0\le c^\omega_t,d^\omega_t\le\bar c$、$g^{\mathrm{em},\omega}_t\ge0$、
+$y^\omega_t\ge0$、$\underline e\le\bar e_t,e^\omega_t\le\bar e$，
+计划层与场景层共享同一份计划购电量与同一日末储电量（$\bar e_{144}=e^\omega_{144}$），
+$\bar c=\bar d=\SI{833.3333}{kWh}$。
+
+该模型是标准的两阶段随机线性规划\cite{birge2011}，规模为 $721+|\Omega|\times721$
+个变量，用 HiGHS 求解器求解\cite{scipy2020}，单日求解时间约 \SI{0.13}{s}。
+
+\subsection{场景生成与预测}
+\label{subsec:q2-scen}
+
+场景采用\textbf{整日残差抽样}：对历史日 $j$ 计算残差
+$r_j=(l_j-\hat l_j,\ v_j-\hat v_j)$，其中 $\hat l_j,\hat v_j$ 是当日制定计划时
+\textbf{能够}获得的因果预测；则目标日 $d$ 的场景取
+$(\hat l_d+r_j^{L},\ \hat v_d+r_j^{V})$，$j<d$。这样场景自动保持负荷与光伏之间的
+相关性以及日内持续性，避免逐时段独立抽样造成的风险低估；同时只使用 $d$ 日之前的
+历史数据，满足因果性要求。为控制规模，对历史残差按日总残差排序等距抽取 $|\Omega|$
+个代表场景并等概率赋权。
+
+预测采用"同月 $+$ 同负荷类型"的因果均值，其中低负荷日由数据分组确定为
+\textbf{周五与周六}（日均负荷约 $7.8\times10^{4}$ kWh，其余日约
+$1.24\times10^{5}$ kWh），并支持相似日指数衰减加权。四种方法的全年平均绝对误差
+（负荷/光伏，单位 kW）分别为：前一日同刻 650.0/185.3，同类型日均 314.5/484.8，
+同月同类型 158.5/240.7，同月同类型叠加 $\lambda=0.9$ 衰减 135.6/174.5。可见负荷误差
+主要由负荷类型与月份决定，而光伏误差更依赖近期天气的持续性，二者宜分别确定
+相似日与衰减系数。
+
+\subsection{临界分位与储能安全余量}
+\label{subsec:q2-quantile}
+
+先考察无储能、单一时段的简化情形：设净需求 $D$ 为随机变量，计划购电量 $g\ge0$，
+则该时段费用为 $C(g)=pg+5p\,\mathrm{E}[(D-g)^{+}]$。由一阶条件
+
+\begin{equation}
+  \frac{\mathrm dC}{\mathrm dg}=p-5p\,\Pr(D>g)=0
+  \quad\Longrightarrow\quad \Pr(D>g)=\frac{1}{5},
+  \label{eq:q2-quantile}
+\end{equation}
+
+即\textbf{最优计划购电量为净需求的 80\% 分位数}；等价地，报童模型临界分位为
+$\frac{C_u}{C_u+C_o}=\frac{4p}{4p+p}=80\%$。该结论\textbf{与电价水平无关}，只取决于
+5 倍这一倍率，因而把紧急购电价倍率作为敏感性参数即可预测最优分位的变化趋势。
+
+数值实验验证了该判据。将场景集按分位 $\tau$ 生成计划并做全年比较，总费用在
+$\tau=0.80\sim0.85$ 取最小（约 $1.915\times10^{7}$ 元），而按条件均值制定的计划
+仅对应 0.626 的覆盖率、比最优分位计划贵 2.5\%；进一步用"事后最优计划"反演，
+其覆盖率恰为 $0.796\sim0.916$，内部解处约为 0.80，与式~\eqref{eq:q2-quantile} 一致。
+
+在含储能的完整模型中，安全余量不是人为设定的比例，而是随机规划的内生结果。
+统计全部 $48096$ 个（日，时段）样本可见两条规律：其一，随机计划相对确定性计划的
+安全余量随场景波动单调增加，按场景标准差四分位依次为 $+10.8$、$+16.4$、$+20.3$、
+$+32.3$ kWh/时段；其二，余量明显集中于高价时段，最低价档仅 $+2.5$ kWh，
+最高价档达 $+30.8$ kWh。这意味着模型自动把"保险"买在 5 倍惩罚最贵的地方，
+其效果见第 \ref{subsec:q2-result} 节与图~\ref{fig:q2-margin}。
+
+\subsection{求解与验证}
+\label{subsec:q2-solve}
+
+为保证结果可信，做了三项独立校验。\textbf{其一，复现问题一}：用本模型的求解器重解
+问题一，得购电费 \num{35126.8486} 元、购电量 \SI{59482.6990}{kWh}、
+充电与放电量 \SI{20740.6661}{kWh} 与 \SI{16799.9396}{kWh}，与
+\texttt{result1.xlsx} 完全一致（仅个别时段因二级目标不同而取出退化等价顶点）。
+\textbf{其二，退化检验}：场景数取 1（场景即点预测）时，随机模型精确退化为确定性
+模型，计划购电量逐时段偏差为 \SI{0.0000}{kWh}。\textbf{其三，理论对照}：无储能退化
+情形下的两阶段最优解与净需求的 80\% 分位数逐时段一致（抽查的 5 个日期中 4 个偏差为
+0，1 个因并列最优相差 \SI{165}{kWh}），与式~\eqref{eq:q2-quantile} 互相印证。
 
 \subsection{结果与分析}
+\label{subsec:q2-result}
 
-% TODO：填写 result2.xlsx，统计正常购电、紧急购电和总费用。
+按口径 A 求解 2025 年 2 月 1 日至 12 月 31 日共 334 天（1 月作为预测预热期，
+只提供历史信息、不计入结果窗口，与官方模板的起始日期一致）。题目指定的四个日期
+（3 月 20 日、6 月 21 日、9 月 23 日、12 月 21 日）的计划购电量、储能充放电量与
+紧急购电结果分别见表~\ref{tab:q2-purchase}--\ref{tab:q2-emergency}，
+紧急购电的时段明细见附录表~\ref{tab:q2-emergency-full}；全部 334 天的逐时段结果
+已填入 \texttt{result2.xlsx}。
+
+\input{q2_tables}
+
+从表~\ref{tab:q2-purchase} 可以看出，四个日期的负荷与光伏特征差异极大：
+6 月 21 日为低负荷日（周六）且光伏充沛，全天购电量仅 \SI{34470.3807}{kWh}；
+12 月 21 日为高负荷日（周日）且光伏偏弱，全天购电量达 \SI{92554.3631}{kWh}，
+是前者的 2.7 倍。10:00--10:10、14:00--14:10 与 20:00--20:10 的计划购电量均为零，
+说明储能在这三个高价时段已能顶住全部净负荷；而 12:00--12:10 与 18:00--18:10
+仍有计划购电，对应价格凹陷时段与晚高峰爬坡时段。
+
+以全年总费用衡量，各策略的差距十分明显：仅用点预测且不投入储能时为
+$19\,668\,532$ 元；改用净需求的 80\% 分位数制定计划可降至 $19\,168\,040$ 元；
+投入储能并按日前计划严格执行时为 $16\,643\,305$ 元；储能允许日内再调度时进一步
+降至 $14\,743\,695$ 元；而完全信息（预测无误差）下的最优费用为 $12\,245\,025$ 元。
+由此得到一个可供工程决策参考的分解：
+
+\begin{equation}
+  \underbrace{19\,668\,532}_{\text{点预测、无储能}}
+  -\underbrace{12\,245\,025}_{\text{完全信息最优}}
+  =\underbrace{3\,261\,212}_{\text{预测误差代价}\ (43.9\%)}
+  +\underbrace{4\,162\,295}_{\text{储能调度价值}\ (56.1\%)},
+  \label{eq:q2-decomp}
+\end{equation}
+
+即从当前基准到理想极限的 $742$ 万元优化空间中，约四成来自把预测做准、约六成来自
+储能的时移与套利能力。上述基准方案实际只争取到其中 $492$ 万元，剩余 $250$ 万元
+即为尚未被吸收的预测误差损失，这也是后文滚动调整（问题三）要处理的对象。
+
+引入两阶段随机规划后，模型通过"多买一点计划电量"来对冲五倍罚金：全年计划购电费
+增加 $899\,350$ 元，紧急购电量从 \SI{693973}{kWh} 降至 \SI{379276}{kWh}
+（下降 45\%）、紧急购电费从 $2\,422\,502$ 元降至 $1\,237\,367$ 元，
+净节省 $285\,785$ 元（1.94\%）。若在模型自身的期望测度下比较，
+随机解相对确定性方案的价值（VSS）为 $1\,638\,920$ 元（11.95\%）；
+两者存在差距，是因为模型中的残差分布比该年份实际发生的偏差更为悲观，
+因此在论文中同时报告"模型内价值"与"样本外实现价值"，以免高估方法收益。
+
+图~\ref{fig:q2-scenario} 以 9 月 23 日为例给出场景扇形与两种计划的对比，
+图~\ref{fig:q2-margin} 给出安全余量随不确定性与电价的变化。风险权重 $\beta$ 的
+敏感性表明：适度风险厌恶（$\beta\approx0.25$）可同时压低费用与尾部风险，
+而 $\beta=0.5$ 时因过度囤电反而使总费用回升，全年费用曲线在
+$\beta\in[0,0.5]$ 上呈浅 U 形。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/q2_scenario_plan.pdf}
+  \caption{问题二指定日期（9 月 23 日）的场景扇形、确定性计划与随机计划}
+  \label{fig:q2-scenario}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/q2_safety_margin.pdf}
+  \caption{储能安全余量随场景波动增大、并集中于高价时段}
+  \label{fig:q2-margin}
+\end{figure}
+
+需要说明模型的适用范围与局限：其一，场景由"同月同类型"残差构造，低估了跨类型、
+跨月份的水平误差，安全余量偏保守，可进一步采用分层抽样并做场景数敏感性；
+其二，口径 B 的日内再调度假定了日内完全信息，作为乐观下界使用，严格因果的实时策略
+性能会略差；其三，日周期口径可通过引入跨日终端价值函数进一步放松。
 
 \section{问题三的滚动调整模型}
 
@@ -385,6 +571,13 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
   \bibitem{scipy2020} P. Virtanen, R. Gommers, T. E. Oliphant, et al. SciPy 1.0:
   Fundamental algorithms for scientific computing in Python[J]. Nature Methods,
   2020, 17: 261--272.
+  \bibitem{rockafellar2000} R. T. Rockafellar and S. Uryasev.
+  Optimization of conditional value-at-risk[J]. Journal of Risk,
+  2000, 2(3): 21--41.
+
+  \bibitem{birge2011} J. R. Birge and F. Louveaux. Introduction to
+  Stochastic Programming[M]. 2nd ed. New York: Springer, 2011.
+
 \end{thebibliography}
 
 \newpage
@@ -396,7 +589,9 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
 
 \section{补充结果}
 
-% TODO：放置正文中不便展开的表格、图形和验证结果。
+问题二指定日期紧急购电的时段明细见表~\ref{tab:q2-emergency-full}。
+
+\input{q2_tables_appendix}
 
 \section{AI 工具使用详情索引}
 

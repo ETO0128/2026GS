@@ -8,7 +8,14 @@
 | `q2_stochastic.py` | 随机优化层：整日残差场景生成、两阶段随机 LP（含 CVaR）、报童机制校验、实时再调度 |
 | `run_question2.py` | 全年实验：自检 → 预测质量 → 策略阶梯 → 临界分位验证 → 随机规划与安全余量 |
 | `fill_result2.py` | 把结果回填到官方模板 `result2.xlsx`（计划购电量 / 充放电量 / 紧急购电量） |
+| `make_q2_tables.py` | 生成论文表 1/表 2/表 3 与附录紧急购电明细（LaTeX，数字全部由代码生成） |
 | `plot_question2.py` | 论文用图（输出到 `src/figure/`） |
+
+论文对应内容：`src/tex/main.tex` 的“问题二”一章（信息结构与执行口径、两阶段随机规划模型、
+场景生成与预测、临界分位与储能安全余量、求解与验证、结果与分析），表格由
+`\input{q2_tables}` 与 `\input{q2_tables_appendix}` 引入（文件在 `src/tex/` 下，与 main.tex
+同目录，上传到在线工程根目录即可）；插图需将 `src/figure/q2_scenario_plan.pdf` 与
+`src/figure/q2_safety_margin.pdf` 放入在线工程的 `figures/` 目录。
 
 ## 运行
 
@@ -17,6 +24,7 @@ python -m pip install -r src/py/requirements.txt
 python src/py/run_question2.py            # 全年 334 天，约 4~6 分钟
 python src/py/run_question2.py --quick    # 冒烟测试，只跑前 12 天
 python src/py/plot_question2.py           # 生成论文用图
+python src/py/make_q2_tables.py           # 生成论文表 1 / 表 2 / 表 3
 python src/py/fill_result2.py             # 回填 result2.xlsx（变体 A，默认）
 python src/py/fill_result2.py --variant B # 回填 result2.xlsx（变体 B）
 ```
@@ -104,4 +112,5 @@ period_order = np.roll(sheet_order, +1)
    压到下限、全年在低位运行，费用反而更高 8,804 元，因此需要跨日终端价值函数。
 3. **场景来源**：目前只用“同月同类型”残差，低估了跨类型/跨月的水平误差，安全余量偏小。
 4. **未做**：相似日聚类的参数用调度遗憾（而非 MAE）选择、调整购电量（问题三）的
-   50% 违约电价口径、`result3.xlsx` / `result4-2.xlsx` / `result4-3.xlsx` 的回填。
+   50% 违约电价口径、`result3.xlsx` / `result4-2.xlsx` / `result4-3.xlsx` 的回填、
+   跨日终端价值函数（用于放宽日周期口径）。
