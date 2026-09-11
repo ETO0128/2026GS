@@ -10,9 +10,9 @@ A2..A366 = 2025-01-01 ~ 12-31 的日期，B..EO 为对应时段的电价（元/k
 ------------
 题目没有说明制定计划时是否已知当天的波动电价，因此提供三种：
 
-``oracle``   ：0:00 即知当天全部时段电价（日前市场口径，与问题一~三\"电价已知\"一致）；
+``oracle``   ：0:00 即知当天全部时段电价（仅作不可实施的信息基准）；
 ``prev_day`` ：只用前一日实际电价曲线作为预测（因果）；
-``profile``  ：用附件4 的逐时段均值（≈附件1 曲线）作为预测（因果，不含日间波动信息）。
+``profile``  ：用决策日前历史价格的逐时段扩展均值预测（因果）。
 """
 from __future__ import annotations
 
@@ -56,9 +56,10 @@ class Prices4:
         if mode == "oracle":
             return self.price[i]
         if mode == "prev_day":
-            return self.price[i - 1] if i > 0 else self.profile
+            return self.price[i - 1] if i > 0 else self.a1
         if mode == "profile":
-            return self.profile
+            # 扩展窗口只含决策日前已经实现的价格；首日使用附件1冷启动曲线。
+            return self.price[:i].mean(axis=0) if i > 0 else self.a1
         raise ValueError(f"未知的价格信息口径：{mode!r}")
 
     def stats(self) -> dict:

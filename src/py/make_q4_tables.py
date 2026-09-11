@@ -24,7 +24,7 @@ NAME_CN = {
     "fixed_price": "附件1 固定电价（问题三基准）",
     "volatile_oracle": "波动电价，0:00 已知当天电价",
     "volatile_prev": "波动电价，前一日电价作预测",
-    "volatile_profile": "波动电价，逐时段均值曲线作预测",
+    "volatile_profile": "波动电价，历史扩展均值预测（正式）",
     "volatile_oracle_none": "波动电价，已知电价但不做调整",
 }
 ORDER = ["fixed_price", "volatile_oracle_none", "volatile_oracle",
@@ -76,12 +76,17 @@ def tex_price_stats(st: dict) -> str:
     ])
 
 
-ORDER_42 = ["fixed_price", "volatile_oracle", "volatile_prev", "volatile_profile"]
+ORDER_42 = ["fixed_price", "volatile_seven_day", "volatile_similar_decay",
+            "volatile_week_type", "volatile_expanding_mean",
+            "volatile_previous_day", "volatile_oracle_benchmark"]
 NAME_CN_42 = {
     "fixed_price": "附件1 固定电价（问题二基准）",
-    "volatile_oracle": "波动电价，0:00 已知当天电价",
-    "volatile_prev": "波动电价，前一日电价作预测",
-    "volatile_profile": "波动电价，逐时段均值曲线作预测",
+    "volatile_seven_day": "波动电价，近七日均值（正式）",
+    "volatile_similar_decay": "波动电价，相似日指数衰减",
+    "volatile_week_type": "波动电价，同星期类型均值",
+    "volatile_expanding_mean": "波动电价，历史扩展均值",
+    "volatile_previous_day": "波动电价，前一日曲线",
+    "volatile_oracle_benchmark": "当日电价完全信息基准（不可实施）",
 }
 
 
@@ -92,7 +97,7 @@ def tex_table42(sum42: dict) -> str:
            r"\begin{table}[H]", r"  \centering",
            r"  \caption{问题四 4-2：波动电价下重做问题二的全年费用（2025-02-01--12-31，共 334 天）}",
            r"  \label{tab:q4-2}", r"  \small",
-           r"  \begin{tabular}{lrrrr}", r"    \toprule",
+           r"  \resizebox{\textwidth}{!}{\begin{tabular}{lrrrr}", r"    \toprule",
            r"    方案 & 计划购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 \\",
            r"    \midrule"]
     for key in ORDER_42:
@@ -104,7 +109,7 @@ def tex_table42(sum42: dict) -> str:
     pb = sum42["perfect_bound"]["total"]
     out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(pb)} & "
                f"{(pb - base) / base * 100:+.2f}\\% \\\\")
-    out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    out += [r"    \bottomrule", r"  \end{tabular}}", r"\end{table}", ""]
     return "\n".join(out)
 
 

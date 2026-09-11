@@ -1,123 +1,103 @@
-"""问题四 4-2：把问题二的固定电价换成附件4 的逐日波动电价，重做日前计划与结算。
+"""Generate the official Question 4-2 comparison and workbook.
 
-口径
-----
-- 沿用问题二的方法：0:00 用因果预测构造日前计划（LP），实际净负荷超出“计划购电量 +
-  计划放电 - 计划充电”的部分按 5 倍实际电价紧急购电；储能严格执行计划（口径 A）。
-- 决策用**价格预测**、结算用**实际波动电价**：与 4-3 完全一致。
-  价格信息口径：oracle（0:00 已知当天全部电价，正式提交口径）/ prev_day（前一日实际
-  电价作预测，因果）/ profile（附件4 逐时段均值，因果）。
-- 另给“完全信息下界”：0:00 已知当天电价与当天真实负荷/光伏的确定性最优费用。
-
-运行：
-    python src/py/run_q4_2.py
-输出：
-    src/outputs/q4_2_report.txt / q4_2_summary.json
+The formal strategy reuses Question 2's source/load forecast and uses a
+seven-day causal price forecast. The oracle variant is a benchmark only.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-import numpy as np
+from fill_result2 import fill, verify
+from question1 import load_question1_data
+from question2 import Question2Config, evaluate_period, run_question2
+from question2_data import load_cold_start_forecast, load_year_data
+from question4_2 import Question42Config, _evaluate, run_question42_baseline
+from question4_2_data import load_question42_data, summarize_prices
+from question4_2_forecast import PriceForecastConfig
 
-import q2_model as q2
-import q4_model as q4
-
-VARIANTS = [
-    ("fixed_price", None, "附件1 固定电价（问题二基准）"),
-    ("volatile_oracle", "oracle", "波动电价·0:00 已知当天电价"),
-    ("volatile_prev", "prev_day", "波动电价·前一日电价作预测（因果）"),
-    ("volatile_profile", "profile", "波动电价·逐时段均值曲线作预测（因果）"),
-]
+METHODS = {
+    "volatile_seven_day": "seven_day",
+    "volatile_previous_day": "previous_day",
+    "volatile_week_type": "week_type",
+    "volatile_similar_decay": "similar_day_decay",
+    "volatile_expanding_mean": "expanding_mean",
+}
 
 
-def simulate_day(att: q2.Attachment, p4: q4.Prices4, i: int, price_mode) -> dict:
-    """单日：决策用价格预测，结算用实际电价；缺口 5 倍紧急购电。"""
-    price_plan = att.price if price_mode is None else p4.forecast(i, price_mode)
-    price_act = att.price if price_mode is None else p4.day(i)
-    l_fc, v_fc = q2.forecast_day(att, i)
-    plan = q2.plan_lp(price_plan, l_fc, v_fc, q2.E0_KWH, "cycle")
-    net_act = att.load_kwh[i] - att.pv_kwh[i]
-    committed = plan["g"] + plan["d"] - plan["c"]
-    shortfall = np.maximum(0.0, net_act - committed)
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def compact(metrics: dict) -> dict:
     return {
-        "date": att.dates[i], "index": i,
-        "g": plan["g"], "charge": plan["c"], "discharge": plan["d"],
-        "soc_start": q2.E0_KWH, "soc_end": float(plan["e"][-1]),
-        "shortfall": shortfall,
-        "plan_cost": float(np.dot(price_act, plan["g"])),
-        "emg_kwh": float(shortfall.sum()),
-        "emg_cost": float(q2.EMG_MULTIPLIER * np.dot(price_act, shortfall)),
+        "plan_cost": float(metrics.get("normal_purchase_cost_yuan", metrics.get("planned_cost_yuan", 0.0))),
+        "emg_cost": float(metrics["emergency_cost_yuan"]),
+        "emg_kwh": float(metrics.get("emergency_purchase_kwh", 0.0)),
+        "total": float(metrics["total_cost_yuan"]),
+        **{k: float(v) for k, v in metrics.items() if k.startswith("price_")},
     }
 
 
+def workbook_days(records) -> list[dict]:
+    return [{
+        "date": r.date, "g": r.plan.grid_kwh,
+        "charge": r.execution.charge_kwh, "discharge": r.execution.discharge_kwh,
+        "soc_start": float(r.execution.soc_kwh[0]), "soc_end": float(r.execution.soc_kwh[-1]),
+        "shortfall": r.execution.emergency_kwh,
+        "plan_cost": r.execution.normal_purchase_cost_yuan,
+        "emg_cost": r.execution.emergency_cost_yuan,
+    } for r in records]
+
+
 def main() -> None:
-    root = q2.project_root()
-    att = q2.Attachment(root)
-    p4 = q4.Prices4(root, att)
-    win = att.window
+    root = project_root()
+    a1 = root / "problems/C题/附件/附件1.xlsx"
+    a2 = root / "problems/C题/附件/附件2.xlsx"
+    a4 = root / "problems/C题/附件/附件4.xlsx"
+    cold = load_cold_start_forecast(a1)
+    q1 = load_question1_data(a1)
+    data = load_question42_data(a2, a4)
 
-    lines: list[str] = []
-    out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
-                 "price_stats": p4.stats(), "variants": {}}
-
-    def emit(s="") -> None:
-        lines.append(str(s))
-        print(s, flush=True)
-
-    emit("问题四 4-2：波动电价下重做问题二（日前计划 + 5 倍紧急购电）")
-    emit(f"结果窗口 {att.dates[win[0]]} ~ {att.dates[win[-1]]}，共 {len(win)} 天")
-    st = out["price_stats"]
-    emit("")
-    emit(f"附件4 电价：{st['min']:.4f} ~ {st['max']:.4f} 元/kWh（均值 {st['mean']:.4f}）；"
-         f"各日极差均值 {st['daily_range_mean']:.4f}（附件1 为 {st['a1_range']:.4f}）")
-    emit("")
-
-    pb = q4.perfect_bound(p4, att)
-    out["perfect_bound"] = pb
-    emit(f"完全信息下界（已知当天电价与真实负荷/光伏，无紧急购电）：{pb['total']:,.2f} 元")
-    emit("")
-    emit(f"{'方案':<34}{'计划购电费':>16}{'紧急购电费':>16}{'合计':>16}{'紧急电量/kWh':>15}")
-
-    for name, mode, cn in VARIANTS:
-        plan = emg = emg_kwh = 0.0
-        per_day = []
-        for i in win:
-            r = simulate_day(att, p4, i, mode)
-            plan += r["plan_cost"]
-            emg += r["emg_cost"]
-            emg_kwh += r["emg_kwh"]
-            per_day.append({"date": str(r["date"]), "plan_cost": r["plan_cost"],
-                            "emg_cost": r["emg_cost"], "emg_kwh": r["emg_kwh"],
-                            "total": r["plan_cost"] + r["emg_cost"]})
-        total = plan + emg
-        out["variants"][name] = {"name": name, "mode": mode, "plan_cost": plan,
-                                 "emg_cost": emg, "emg_kwh": emg_kwh, "total": total,
-                                 "per_day": per_day}
-        emit(f"{cn:<34}{plan:>16,.2f}{emg:>16,.2f}{total:>16,.2f}{emg_kwh:>15,.1f}")
-
-    emit("")
-    base = out["variants"]["fixed_price"]
-    orac = out["variants"]["volatile_oracle"]
-    prev = out["variants"]["volatile_prev"]
-    prof = out["variants"]["volatile_profile"]
-    emit("对比结论")
-    emit(f"  1) 波动电价抬高费用：已知当天电价时合计 {orac['total']:,.2f} 元，"
-         f"比附件1 固定电价基准 {base['total']:,.2f} 元高 {orac['total']-base['total']:,.2f} 元"
-         f"（{(orac['total']-base['total'])/base['total']*100:.2f}%）")
-    emit(f"  2) 价格信息价值有限：前一日电价预测 {prev['total']:,.2f} 元，"
-         f"比已知当天电价多 {prev['total']-orac['total']:,.2f} 元"
-         f"（{(prev['total']-orac['total'])/orac['total']*100:.2f}%）；"
-         f"逐时段均值预测 {prof['total']:,.2f} 元，多 {prof['total']-orac['total']:,.2f} 元")
-    emit(f"  3) 与完全信息下界 {pb['total']:,.2f} 元的差距主要来自光伏/负荷预测误差，"
-         f"而非价格不确定性")
-
-    out_path = root / "src" / "outputs" / "q4_2_report.txt"
-    out_path.write_text("\n".join(lines), encoding="utf-8")
-    import json
-    (out_path.parent / "q4_2_summary.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-    print("done ->", out_path)
+    fixed = run_question2(load_year_data(a1, a2), Question2Config(), cold)
+    variants: dict[str, dict] = {"fixed_price": compact(evaluate_period(fixed.official_days))}
+    selected = None
+    for key, method in METHODS.items():
+        result = run_question42_baseline(
+            data, cold, q1.price_yuan_per_kwh,
+            Question42Config(price_forecast=PriceForecastConfig(method=method)),
+        )
+        variants[key] = compact(_evaluate(result.official_days))
+        if method == "seven_day":
+            selected = result
+    oracle = run_question42_baseline(
+        data, cold, q1.price_yuan_per_kwh,
+        Question42Config(price_information="oracle_benchmark"),
+    )
+    variants["volatile_oracle_benchmark"] = compact(_evaluate(oracle.official_days))
+    assert selected is not None
+    perfect_bound = float(sum(r.perfect_information.total_cost_yuan for r in selected.official_days))
+    summary = {
+        "window": [str(selected.official_days[0].date), str(selected.official_days[-1].date), len(selected.official_days)],
+        "formal_variant": "volatile_seven_day",
+        "information_boundary": "At 00:00 only prices realized through the previous day are available.",
+        "price_stats": summarize_prices(data),
+        "perfect_bound": {"total": perfect_bound}, "variants": variants,
+    }
+    lines = ["问题四 4-2：统一问题二源荷预测后的波动电价日前调度", ""]
+    for key, value in variants.items():
+        lines.append(f"{key}: 计划购电费 {value['plan_cost']:,.2f}，紧急购电费 {value['emg_cost']:,.2f}，合计 {value['total']:,.2f}")
+    lines += ["", f"完全信息下界: {perfect_bound:,.2f}",
+              "正式方案: volatile_seven_day；oracle 仅作不可实施的信息基准。"]
+    out_dir = root / "src/outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "q4_2_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out_dir / "q4_2_report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    days = workbook_days(selected.official_days)
+    output_book = root / "src/附件5/result4-2.xlsx"
+    fill(root / "problems/C题/附件/附件5/result4-2.xlsx", output_book, days, "causal-seven-day")
+    verify(output_book, days)
+    print("\n".join(lines))
 
 
 if __name__ == "__main__":

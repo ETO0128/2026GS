@@ -43,6 +43,7 @@ class Question42Config:
     reserve_kwh: float = 6000.0
     emergency_multiplier: float = 5.0
     max_days: int | None = None
+    price_information: str = "causal"
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,7 @@ def _evaluate(days: tuple[Question42DailyRecord, ...]) -> dict[str, float | int]
         }
     normal_cost = float(sum(day.execution.normal_purchase_cost_yuan for day in days))
     emergency_cost = float(sum(day.execution.emergency_cost_yuan for day in days))
+    emergency_kwh = float(sum(np.sum(day.execution.emergency_kwh) for day in days))
     perfect_cost = float(sum(day.perfect_information.total_cost_yuan for day in days))
     return {
         "evaluated_days": len(days),
@@ -109,6 +111,7 @@ def _evaluate(days: tuple[Question42DailyRecord, ...]) -> dict[str, float | int]
         "price_bias_yuan_per_kwh": price_metrics["bias_yuan_per_kwh"],
         "normal_purchase_cost_yuan": normal_cost,
         "emergency_cost_yuan": emergency_cost,
+        "emergency_purchase_kwh": emergency_kwh,
         "total_cost_yuan": normal_cost + emergency_cost,
         "perfect_information_cost_yuan": perfect_cost,
         "dispatch_regret_yuan": float(sum(day.dispatch_regret_yuan for day in days)),
@@ -122,7 +125,16 @@ def run_question42_baseline(
     cold_start_price_yuan_per_kwh: np.ndarray,
     config: Question42Config = Question42Config(),
 ) -> Question42YearResult:
-    """Run fixed day-ahead plans in chronological order without future data."""
+    """Run fixed day-ahead plans chronologically.
+
+    ``price_information='causal'`` is the formal setting.  The optional
+    ``oracle_benchmark`` setting is retained only to quantify the value of
+    perfect day-ahead price information and must not be submitted as a
+    realizable strategy.
+    """
+
+    if config.price_information not in {"causal", "oracle_benchmark"}:
+        raise ValueError("price_information must be causal or oracle_benchmark")
 
     total_days = len(data.dates) if config.max_days is None else min(config.max_days, len(data.dates))
     if total_days < 1:
@@ -155,7 +167,17 @@ def run_question42_baseline(
                 np.stack(history_point_net), np.stack(history_net_residual),
                 config.source_forecast,
             )
-        if index == 0:
+        if config.price_information == "oracle_benchmark":
+            price_result = PriceForecastResult(
+                decision_date=run_date,
+                history_end_date=run_date,
+                price_yuan_per_kwh=data.price_yuan_per_kwh[index].copy(),
+                method="oracle_benchmark",
+                source_dates=(run_date,),
+                source_weights=np.ones(1),
+                fallback_reason="noncausal_information_benchmark",
+            )
+        elif index == 0:
             price_result = _cold_start_price_result(run_date, cold_start_price_yuan_per_kwh)
         else:
             price_result = forecast_price(data, index, config.price_forecast)
@@ -211,7 +233,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--attachment4", type=Path, default=root / "problems/C题/附件/附件4.xlsx")
     parser.add_argument(
         "--price-forecast",
-        choices=("previous_day", "seven_day", "week_type", "similar_day_decay"),
+        choices=("previous_day", "seven_day", "week_type", "similar_day_decay", "expanding_mean"),
         default="seven_day",
     )
     parser.add_argument("--days", type=int)
