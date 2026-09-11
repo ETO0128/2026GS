@@ -8,7 +8,12 @@ from pathlib import Path
 import numpy as np
 from openpyxl import load_workbook
 
-from question2_data import internal_to_template, load_year_data, template_column_minutes
+from question2_data import (
+    internal_to_template,
+    load_actual_year_data,
+    load_year_data,
+    template_column_minutes,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +37,13 @@ class Question2DataTests(unittest.TestCase):
         source = load_workbook(ATTACHMENT_2, read_only=True, data_only=True)["小区负载"]
         self.assertEqual(self.data.load_kw[0, 0], source.cell(2, 145).value)
         self.assertEqual(self.data.load_kw[0, 1], source.cell(2, 2).value)
+
+    def test_actual_year_loader_matches_question2_curves(self) -> None:
+        actual = load_actual_year_data(ATTACHMENT_2)
+        self.assertEqual(actual.dates, self.data.dates)
+        np.testing.assert_array_equal(actual.minute_of_day, self.data.minute_of_day)
+        np.testing.assert_allclose(actual.load_kw, self.data.load_kw)
+        np.testing.assert_allclose(actual.pv_kw, self.data.pv_kw)
 
     def test_template_round_trip(self) -> None:
         internal = np.arange(144, dtype=float)
