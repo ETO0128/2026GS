@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a causal, reproducible Question 2 pipeline that forecasts daily load and PV, fixes day-ahead grid purchases, simulates realized storage operation and emergency purchases, evaluates all baselines, and fills the official `result2.xlsx` template.
+**Goal:** Build a causal, reproducible Question 2 pipeline that progresses from deterministic baselines to an 80% quantile check, joint residual scenarios, two-stage stochastic planning, cost-aware model selection, cross-day terminal value, and a verified `result2.xlsx`.
 
-**Architecture:** Extract Question 1's physical LP into a shared storage-dispatch module, then layer validated annual data loading, causal forecast strategies, day-ahead planning, two execution policies, annual evaluation, and reporting around it. Every forecast and parameter choice is date-ordered; only the grid plan is fixed at 0:00, while the recommended policy may causally re-optimize storage using current observations and the original future forecast.
+**Architecture:** Extract Question 1's physical LP into a shared storage-dispatch module, then layer validated annual data loading, causal forecast strategies, day-ahead planning, two execution policies, and annual evaluation around it. After that baseline is stable, add whole-day paired residual scenarios, a stochastic LP with shared first-stage grid decisions, historical dispatch regret, and a convex piecewise-linear terminal value; reporting consumes only verified results.
 
 **Tech Stack:** Python 3, NumPy, SciPy HiGHS linear programming, openpyxl, Matplotlib, `unittest`, LaTeX.
 
@@ -18,6 +18,8 @@
 - Only `2025-01-01 00:00` starts at `6000 kWh`; every later day starts from the preceding realized end SOC.
 - A day's planned grid purchase is fixed at 0:00 and paid in full; emergency purchase costs five times the normal slot price.
 - Forecasting date `d` may read only dates earlier than `d`; parameter tuning must also obey this boundary.
+- Residual scenarios preserve all 144 time points and pair load/PV errors from the same historical date; every source date is earlier than the decision date.
+- Perfect-information costs are historical evaluation lower bounds only and never enter the current day's information set.
 - January is the warm-up period; official evaluation and workbook output cover `2025-02-01` through `2025-12-31`.
 - Preserve Question 1 outputs and tests while extracting shared code.
 - Do not write `result2.xlsx` unless all annual feasibility and completeness checks pass.
@@ -31,11 +33,15 @@
 - Modify `src/py/question1.py`: delegate physical optimization to `microgrid_core` while preserving its public behavior.
 - Create `src/py/question2_data.py`: annual workbook loading, date/time normalization, and validation.
 - Create `src/py/question2_forecast.py`: causal baselines, similar-day predictor, rolling selection, and forecast metrics.
+- Create `src/py/question2_scenarios.py`: 80% quantile baseline and whole-day paired load/PV residual scenarios.
+- Create `src/py/question2_value.py`: historical perfect-information lower bounds and convex piecewise-linear SOC terminal values.
 - Create `src/py/question2_dispatch.py`: day-ahead planner, fixed-plan simulator, causal storage recourse, and emergency-event compression.
 - Create `src/py/question2.py`: annual orchestration, evaluation, CLI, result writing, and plots.
 - Create `src/py/test_microgrid_core.py`: shared LP regression and boundary tests.
 - Create `src/py/test_question2_data.py`: annual input and time-mapping tests.
 - Create `src/py/test_question2_forecast.py`: leakage, fallback, metrics, and weighting tests.
+- Create `src/py/test_question2_scenarios.py`: quantile, pairing, provenance, and single-scenario tests.
+- Create `src/py/test_question2_value.py`: regret, leakage, convexity, interpolation, and fallback tests.
 - Create `src/py/test_question2_dispatch.py`: emergency purchase, SOC, fixed-plan, and recourse tests.
 - Create `src/py/test_question2_integration.py`: multi-day continuity, annual completeness, and template tests.
 - Modify `src/py/README.md`: Question 2 model, commands, outputs, and reproducibility instructions.
@@ -67,7 +73,9 @@ Create the matrix with these exact claims:
 | Forecast validation must preserve time order | Forecasting textbook or primary methods source | Expanding-window evaluation |
 | Similar days can be selected by calendar and curve similarity | Peer-reviewed load-forecasting paper | Similar-day predictor |
 | Day-ahead schedules and real-time controls can be separated | Peer-reviewed PV-storage optimization paper | Planning/execution architecture |
-| CVaR can be represented in an optimization model | Original CVaR paper | Later risk extension only |
+| Whole-day paired residual scenarios preserve source/load dependence | Peer-reviewed microgrid uncertainty paper | Scenario generator |
+| CVaR can be represented in an optimization model | Original CVaR paper | Random-LP risk extension |
+| Stored energy has a cross-day opportunity value | Peer-reviewed approximate dynamic programming paper | Terminal-value model |
 ```
 
 - [ ] **Step 2: Record verified primary or author-maintained sources**
@@ -77,7 +85,10 @@ Use and summarize these sources without copying extended passages:
 ```text
 https://otexts.com/fpp3/tscv.html
 https://doi.org/10.1016/j.ijepes.2005.12.007
-https://www.sciencedirect.com/science/article/pii/S2405896317316440
+https://doi.org/10.3390/electronics9071117
+https://doi.org/10.1016/j.jprocont.2016.04.008
+https://doi.org/10.1049/iet-gtd.2017.0427
+https://doi.org/10.1287/ijoc.2015.0640
 https://uryasev.github.io/publications/
 https://doi.org/10.3390/forecast8020032
 ```
@@ -89,7 +100,7 @@ The reference matrix must distinguish foundational support from methods deferred
 Run:
 
 ```powershell
-rg -n "rolling|similar|Mandal|storage|CVaR|Rockafellar" docs/research/question2_reference_matrix.md src/tex/references.txt
+rg -n "rolling|similar|Pedro|Parisio|correlated|CVaR|Rockafellar|Powell" docs/research/question2_reference_matrix.md src/tex/references.txt
 ```
 
 Expected: every retained reference appears in the matrix with a concrete role; no unrelated source is added.
@@ -722,7 +733,394 @@ git commit -m "feat: add annual question 2 evaluation"
 
 ---
 
-### Task 8: Workbook Output, Figures, and Sensitivity Results
+### Task 8: Quantile Baseline and Joint Residual Scenarios
+
+This task implements Issue #10's “整日源荷相关残差场景” requirement before the stochastic planner consumes any scenario, while retaining “逐时独立误差采样” only as an ablation control.
+
+**Files:**
+- Create: `src/py/question2_scenarios.py`
+- Create: `src/py/test_question2_scenarios.py`
+
+**Interfaces:**
+- Consumes: historical actual load/PV, matching historical forecasts, target forecast, similar-day labels, and decision index.
+- Produces: `ResidualScenario`, `ScenarioSet`, `empirical_net_demand_quantile`, `build_independent_residual_scenarios`, and `build_joint_residual_scenarios`.
+
+- [ ] **Step 1: Write a failing empirical 80% quantile test**
+
+```python
+def test_empirical_net_demand_quantile_uses_higher_order_statistic(self) -> None:
+    history = np.array([[10.0], [20.0], [30.0], [40.0], [50.0]])
+    result = empirical_net_demand_quantile(history, quantile=0.80)
+    np.testing.assert_allclose(result, np.array([50.0]))
+```
+
+Use NumPy's `method="higher"` convention so the finite-sample rule is deterministic and conservative.
+
+- [ ] **Step 2: Write a failing paired-residual provenance test**
+
+```python
+def test_scenario_keeps_load_and_pv_residuals_from_same_day(self) -> None:
+    residuals = make_labeled_residual_history()
+    scenarios = build_joint_residual_scenarios(
+        residuals,
+        target_load_kw=np.full(144, 1000.0),
+        target_pv_kw=np.full(144, 200.0),
+        decision_date=date(2025, 2, 1),
+        eligible_dates=(date(2025, 1, 10), date(2025, 1, 20)),
+        max_scenarios=2,
+    )
+    self.assertEqual(scenarios.items[0].load_residual_source, scenarios.items[0].pv_residual_source)
+    self.assertTrue(all(item.source_date < scenarios.decision_date for item in scenarios.items))
+```
+
+Define `make_labeled_residual_history()` in the test with two dates whose load residuals are constant `+10` and `+20`, and PV residuals are constant `-1` and `-2`; this makes cross-day mispairing observable.
+
+- [ ] **Step 3: Run tests and verify missing-module failures**
+
+```powershell
+python -m unittest src/py/test_question2_scenarios.py -v
+```
+
+- [ ] **Step 4: Implement scenario contracts and causal validation**
+
+```python
+@dataclass(frozen=True)
+class ResidualScenario:
+    source_date: date
+    load_kw: np.ndarray
+    pv_kw: np.ndarray
+    probability: float
+    clipped_load_kwh: float
+    clipped_pv_kwh: float
+
+    @property
+    def load_residual_source(self) -> date:
+        return self.source_date
+
+    @property
+    def pv_residual_source(self) -> date:
+        return self.source_date
+
+@dataclass(frozen=True)
+class ScenarioSet:
+    decision_date: date
+    items: tuple[ResidualScenario, ...]
+```
+
+For each eligible historical date, add its complete 144-point load residual and PV residual to the target forecasts, clip negative physical values to zero, and record the clipped energy. Preserve temporal order within each curve and date pairing across source and load. Assign equal probabilities that sum to one. Reject empty sets, duplicate sources, non-finite arrays, shape mismatches, or a source date on/after the decision date.
+
+- [ ] **Step 5: Add autocorrelation-preservation and future-leakage tests**
+
+Implement `build_independent_residual_scenarios` only as an ablation: for each time slot and source separately, sample from eligible historical residuals using `np.random.default_rng(seed)`. The seed is a required argument and is stored in scenario metadata. It must still reject any residual source on/after the decision date.
+
+Compare lag-1 residual correlation for independent and whole-day construction, requiring the joint sampler to preserve the selected source curve exactly while the independent sampler does not falsely claim preserved provenance. Mutate all future residuals to verify both current scenario sets remain byte-for-byte equal. Run:
+
+```powershell
+python -m unittest src/py/test_question2_scenarios.py -v
+```
+
+Expected: quantile, pairing, probabilities, provenance, deterministic seeding, temporal structure, clipping, and leakage tests pass.
+
+- [ ] **Step 6: Commit quantile and scenario generation**
+
+```powershell
+git add src/py/question2_scenarios.py src/py/test_question2_scenarios.py
+git commit -m "feat: add quantile and joint residual scenarios"
+```
+
+---
+
+### Task 9: Two-Stage Stochastic Day-Ahead LP
+
+This task implements the “两阶段随机 LP” innovation after the deterministic baseline is verified.
+
+**Files:**
+- Modify: `src/py/question2_dispatch.py`
+- Modify: `src/py/test_question2_dispatch.py`
+- Modify: `src/py/question2.py`
+- Modify: `src/py/test_question2_integration.py`
+
+**Interfaces:**
+- Consumes: a `ScenarioSet`, fixed price vector, initial SOC, terminal treatment, emergency multiplier, optional CVaR confidence, and risk weight.
+- Produces: `StochasticPlan` and `plan_two_stage_stochastic`.
+
+- [ ] **Step 1: Write a failing zero-error equivalence test**
+
+```python
+def test_single_zero_error_scenario_matches_deterministic_grid_plan(self) -> None:
+    predicted = make_flat_forecast(load_kw=600.0, pv_kw=0.0)
+    deterministic = plan_day_ahead(date(2025, 2, 1), predicted, np.ones(144), 6000.0, 6000.0)
+    scenarios = make_single_scenario_set(predicted, source_date=date(2025, 1, 31))
+    stochastic = plan_two_stage_stochastic(
+        date(2025, 2, 1), scenarios, np.ones(144), 6000.0, 6000.0,
+        emergency_multiplier=5.0, cvar_confidence=None, risk_weight=0.0,
+    )
+    np.testing.assert_allclose(stochastic.grid_kwh, deterministic.grid_kwh, atol=1e-5)
+```
+
+Define `make_single_scenario_set` in the dispatch test by copying the forecast curves into one probability-1 scenario.
+
+- [ ] **Step 2: Write a failing shared-first-stage test**
+
+Construct two scenarios with opposite noon residuals and assert that the returned object contains one 144-point grid plan but two separately feasible recourse schedules. Assert each scenario's energy balance and SOC bounds independently.
+
+- [ ] **Step 3: Run focused tests and verify failure**
+
+```powershell
+python -m unittest src/py/test_question2_dispatch.py src/py/test_question2_integration.py -v
+```
+
+- [ ] **Step 4: Implement the stochastic plan contract**
+
+```python
+@dataclass(frozen=True)
+class StochasticPlan:
+    date: date
+    price_yuan_per_kwh: np.ndarray
+    grid_kwh: np.ndarray
+    scenario_charge_kwh: np.ndarray
+    scenario_discharge_kwh: np.ndarray
+    scenario_emergency_kwh: np.ndarray
+    scenario_curtailment_kwh: np.ndarray
+    scenario_soc_kwh: np.ndarray
+    scenario_probabilities: np.ndarray
+    planned_cost_yuan: float
+    expected_emergency_cost_yuan: float
+    cvar_emergency_cost_yuan: float | None
+```
+
+Use one shared `grid_kwh[t]` vector and one recourse block per scenario. Enforce energy balance, SOC transition, capacity, power, no export, and terminal treatment in every scenario. Minimize planned grid cost plus probability-weighted emergency cost. For the risk version, add the Rockafellar-Uryasev linear CVaR epigraph with confidence in `(0, 1)` and nonnegative risk weight. `simulate_causal_recourse` accepts either `DayAheadPlan` or `StochasticPlan` through a `PlanningResult` protocol exposing `date`, `price_yuan_per_kwh`, and `grid_kwh`.
+
+- [ ] **Step 5: Add the quantile and stochastic named annual cases**
+
+Extend orchestration with:
+
+```text
+quantile_80_fixed
+joint_scenario_expected_causal
+joint_scenario_cvar_causal
+```
+
+The quantile case ignores storage only for its theoretical purchase baseline and is not eligible as the official result. The stochastic cases use only historical scenarios available on each decision date.
+
+- [ ] **Step 6: Run equivalence, feasibility, and annual smoke tests**
+
+```powershell
+python -m unittest src/py/test_question2_dispatch.py src/py/test_question2_integration.py -v
+python src/py/question2.py --strategy causal --forecast similar_day --planner stochastic --start 2025-02-01 --end 2025-02-07 --dry-run
+```
+
+Expected: deterministic equivalence passes for the zero-error case, every scenario is feasible, and the seven-day smoke run reports expected and realized costs without leakage.
+
+- [ ] **Step 7: Commit the stochastic LP**
+
+```powershell
+git add src/py/question2_dispatch.py src/py/test_question2_dispatch.py src/py/question2.py src/py/test_question2_integration.py
+git commit -m "feat: add two-stage stochastic day-ahead planning"
+```
+
+---
+
+### Task 10: Perfect-Information Regret and Cost-Aware Selection
+
+This task turns historical “调度遗憾” into the “成本感知” forecast-parameter selection score required by Issue #10.
+
+**Files:**
+- Modify: `src/py/question2.py`
+- Modify: `src/py/question2_forecast.py`
+- Modify: `src/py/test_question2_forecast.py`
+- Modify: `src/py/test_question2_integration.py`
+
+**Interfaces:**
+- Consumes: completed historical daily records, candidate forecast configurations, and perfect-information daily LP costs.
+- Produces: `DispatchRegret`, `compute_historical_regret`, and `select_cost_aware_config`.
+
+- [ ] **Step 1: Write a failing regret arithmetic test**
+
+```python
+def test_dispatch_regret_is_realized_cost_minus_perfect_information_cost(self) -> None:
+    regret = compute_historical_regret(
+        run_date=date(2025, 2, 1),
+        realized_cost_yuan=1250.0,
+        perfect_cost_yuan=1000.0,
+    )
+    self.assertAlmostEqual(regret.regret_yuan, 250.0)
+    self.assertAlmostEqual(regret.normalized_regret, 0.25)
+```
+
+- [ ] **Step 2: Write a failing historical-boundary test**
+
+For decision date `2025-03-01`, mutate realized load/PV on and after that date and assert the selected configuration is unchanged. Also assert every regret record used by the selector has `record.date < decision_date`.
+
+- [ ] **Step 3: Run tests and verify failure**
+
+```powershell
+python -m unittest src/py/test_question2_forecast.py src/py/test_question2_integration.py -v
+```
+
+- [ ] **Step 4: Implement regret and the selector outside the forecast core**
+
+```python
+@dataclass(frozen=True)
+class DispatchRegret:
+    date: date
+    realized_cost_yuan: float
+    perfect_cost_yuan: float
+    regret_yuan: float
+    normalized_regret: float
+
+def compute_historical_regret(
+    run_date: date,
+    realized_cost_yuan: float,
+    perfect_cost_yuan: float,
+) -> DispatchRegret:
+    regret = realized_cost_yuan - perfect_cost_yuan
+    return DispatchRegret(
+        date=run_date,
+        realized_cost_yuan=realized_cost_yuan,
+        perfect_cost_yuan=perfect_cost_yuan,
+        regret_yuan=regret,
+        normalized_regret=regret / max(abs(perfect_cost_yuan), 1e-9),
+    )
+
+def select_cost_aware_config(
+    decision_date: date,
+    candidates: tuple[ForecastConfig, ...],
+    historical_forecast_scores: dict[ForecastConfig, float],
+    historical_regret_scores: dict[ForecastConfig, float],
+    alpha: float,
+) -> ForecastConfig:
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError("alpha must be between zero and one")
+    if any(item not in historical_forecast_scores or item not in historical_regret_scores for item in candidates):
+        raise ValueError("every candidate requires forecast and regret scores")
+    return min(
+        candidates,
+        key=lambda item: (
+            alpha * historical_forecast_scores[item]
+            + (1.0 - alpha) * historical_regret_scores[item],
+            historical_forecast_scores[item],
+            item.candidate_count,
+            abs(item.lambda_load - 1.0) + abs(item.lambda_pv - 1.0),
+        ),
+    )
+```
+
+Place `DispatchRegret` and the selector in `question2.py`, not `question2_forecast.py`, so forecasting remains independent of optimization. Replace the displayed function body with direct calculation of `alpha * normalized_forecast_score + (1 - alpha) * normalized_regret_score`, validating that `0 <= alpha <= 1` and every candidate has both scores. Break exact ties by lower forecast score, smaller candidate count, then decay closer to 1.
+
+- [ ] **Step 5: Add monthly causal reselection and ablation cases**
+
+Recompute candidate scores on the first day of each month using only earlier completed days. Compare `error_only_selection` and `cost_aware_selection` with `alpha` values `0.25`, `0.50`, and `0.75`; select among alpha values using an earlier nested historical window, never the current or future month.
+
+- [ ] **Step 6: Run tests and commit**
+
+```powershell
+python -m unittest src/py/test_question2_forecast.py src/py/test_question2_integration.py -v
+git add src/py/question2.py src/py/question2_forecast.py src/py/test_question2_forecast.py src/py/test_question2_integration.py
+git commit -m "feat: add cost-aware forecast selection"
+```
+
+---
+
+### Task 11: Convex Piecewise-Linear Cross-Day SOC Value
+
+This task implements the cross-day SOC “终端价值” alternative to resetting or hard-constraining the battery every day.
+
+**Files:**
+- Create: `src/py/question2_value.py`
+- Create: `src/py/test_question2_value.py`
+- Modify: `src/py/question2_dispatch.py`
+- Modify: `src/py/question2.py`
+- Modify: `src/py/test_question2_integration.py`
+
+**Interfaces:**
+- Consumes: historical next-day optimization costs at an SOC grid and a decision date.
+- Produces: `PiecewiseLinearTerminalValue`, `fit_terminal_value`, and LP epigraph rows for terminal SOC.
+
+- [ ] **Step 1: Write failing evaluation and convexity tests**
+
+```python
+def test_piecewise_linear_value_interpolates_between_breakpoints(self) -> None:
+    value = PiecewiseLinearTerminalValue(
+        breakpoints_kwh=np.array([1200.0, 6000.0, 10800.0]),
+        costs_yuan=np.array([1000.0, 400.0, 100.0]),
+        history_end=date(2025, 1, 31),
+    )
+    self.assertAlmostEqual(value.evaluate(3600.0), 700.0)
+
+def test_nonconvex_cost_samples_are_convexified(self) -> None:
+    fitted = fit_convex_terminal_value(
+        np.array([1200.0, 6000.0, 10800.0]),
+        np.array([1000.0, 700.0, 100.0]),
+        history_end=date(2025, 1, 31),
+    )
+    self.assertTrue(np.all(np.diff(fitted.segment_slopes) >= -1e-12))
+```
+
+- [ ] **Step 2: Write a failing future-leakage and fallback test**
+
+Mutate all cost samples dated on/after the decision date and assert the fitted value is unchanged. With fewer than seven historical days, assert `fit_terminal_value` returns `TerminalValueFallback(reserve_kwh=6000.0, reason="insufficient_history")`.
+
+- [ ] **Step 3: Run tests and verify failure**
+
+```powershell
+python -m unittest src/py/test_question2_value.py src/py/test_question2_integration.py -v
+```
+
+- [ ] **Step 4: Implement terminal-value contracts and fitting**
+
+```python
+@dataclass(frozen=True)
+class PiecewiseLinearTerminalValue:
+    breakpoints_kwh: np.ndarray
+    costs_yuan: np.ndarray
+    history_end: date
+
+    @property
+    def segment_slopes(self) -> np.ndarray:
+        return np.diff(self.costs_yuan) / np.diff(self.breakpoints_kwh)
+
+    def evaluate(self, soc_kwh: float) -> float:
+        return float(np.interp(soc_kwh, self.breakpoints_kwh, self.costs_yuan))
+
+@dataclass(frozen=True)
+class TerminalValueFallback:
+    reserve_kwh: float
+    reason: str
+```
+
+Use SOC grid `(1200, 3600, 6000, 8400, 10800)`. For each eligible historical next day, solve the perfect-information LP from each grid SOC, average cost by SOC, and project segment slopes to a nondecreasing sequence before reconstructing costs. Store the last historical date used.
+
+- [ ] **Step 5: Add the convex epigraph to deterministic and stochastic LPs**
+
+For every segment `k`, add `z >= slope[k] * E_end + intercept[k]` and minimize `z` with operating cost. Keep the fixed-reserve path unchanged when a fallback is returned. Add named ablations:
+
+```text
+terminal_equal_start
+terminal_none
+terminal_fixed_reserve
+terminal_piecewise_value
+```
+
+- [ ] **Step 6: Run unit, integration, and 14-day smoke tests**
+
+```powershell
+python -m unittest src/py/test_question2_value.py src/py/test_question2_dispatch.py src/py/test_question2_integration.py -v
+python src/py/question2.py --strategy causal --planner stochastic --terminal-value piecewise --start 2025-02-01 --end 2025-02-14 --dry-run
+```
+
+Expected: interpolation, convexity, fallback, leakage, LP feasibility, and cross-day continuity pass.
+
+- [ ] **Step 7: Commit terminal value support**
+
+```powershell
+git add src/py/question2_value.py src/py/test_question2_value.py src/py/question2_dispatch.py src/py/question2.py src/py/test_question2_integration.py
+git commit -m "feat: add cross-day soc terminal value"
+```
+
+---
+
+### Task 12: Workbook Output, Figures, and Sensitivity Results
 
 **Files:**
 - Modify: `src/py/question2.py`
@@ -770,7 +1168,7 @@ Write to a temporary file first, reopen it, validate every date and total agains
 
 - [ ] **Step 4: Implement compact summary and plots**
 
-The summary workbook contains `策略汇总`, `预测误差`, `指定日期`, and `敏感性分析`. The three figures show monthly forecast error, cost components by strategy, and the four specified dates (`2025-03-20`, `2025-06-21`, `2025-09-23`, `2025-12-21`). Do not create decorative charts unrelated to a paper claim.
+The summary workbook contains `策略汇总`, `预测误差`, `创新消融`, `指定日期`, and `敏感性分析`. The three figures show monthly forecast error, deterministic/quantile/stochastic cost components, and the four specified dates (`2025-03-20`, `2025-06-21`, `2025-09-23`, `2025-12-21`). Do not create decorative charts unrelated to a paper claim.
 
 - [ ] **Step 5: Run one-factor sensitivity cases**
 
@@ -790,7 +1188,7 @@ For each case record total cost, emergency cost, emergency energy, curtailment, 
 Before editing workbooks, follow the spreadsheet artifact workflow for a template-preserving edit and visual verification. Run:
 
 ```powershell
-python src/py/question2.py --strategy causal --forecast similar_day --write-results --plots
+python src/py/question2.py --strategy causal --forecast similar_day --planner stochastic --selection cost-aware --terminal-value piecewise --write-results --plots
 python -m unittest src/py/test_question2_integration.py -v
 ```
 
@@ -805,7 +1203,7 @@ git commit -m "feat: generate question 2 results"
 
 ---
 
-### Task 9: Paper and Reproducibility Documentation
+### Task 13: Paper and Reproducibility Documentation
 
 **Files:**
 - Modify: `src/py/README.md`
@@ -831,7 +1229,7 @@ Include these commands and explain dry-run versus artifact-writing behavior:
 ```powershell
 python -m unittest discover -s src/py -p "test_*.py" -v
 python src/py/question2.py --strategy fixed --forecast all --dry-run
-python src/py/question2.py --strategy causal --forecast similar_day --write-results --plots
+python src/py/question2.py --strategy causal --forecast similar_day --planner stochastic --selection cost-aware --terminal-value piecewise --write-results --plots
 ```
 
 - [ ] **Step 4: Compile and inspect the paper**
@@ -855,10 +1253,10 @@ git commit -m "docs: explain question 2 model and results"
 
 ---
 
-### Task 10: Final Verification and Issue Handoff
+### Task 14: Final Verification and Issue Handoff
 
 **Files:**
-- Verify all files changed in Tasks 1–9.
+- Verify all files changed in Tasks 1–13.
 - No new production file is introduced in this task.
 
 **Interfaces:**
@@ -877,7 +1275,7 @@ Expected: all tests pass with zero errors and failures.
 
 ```powershell
 python src/py/question1.py --no-plots
-python src/py/question2.py --strategy causal --forecast similar_day --write-results --plots
+python src/py/question2.py --strategy causal --forecast similar_day --planner stochastic --selection cost-aware --terminal-value piecewise --write-results --plots
 ```
 
 Expected: Question 1 remains reproducible; Question 2 prints 365 simulated days, 334 official days, zero physical violations, output paths, and reconciled totals.
@@ -897,7 +1295,7 @@ Use the code-review workflow on the complete branch. Resolve all correctness fin
 
 - [ ] **Step 5: Prepare but do not publish the Issue comment without confirmation**
 
-The comment must list completed workflow stages, model choice, information boundary, baseline comparisons, main metrics, sensitivity conclusions, artifact paths, commit hashes, and any remaining limitation. Ask for action-time confirmation immediately before posting to GitHub.
+The comment must list completed workflow stages, model choice, information boundary, baseline and innovation-model comparisons, main metrics, sensitivity conclusions, artifact paths, commit hashes, and any remaining limitation. Prepare links for Issues #9 and #10, and ask for action-time confirmation immediately before posting to GitHub.
 
 - [ ] **Step 6: Commit any verification-driven corrections**
 
