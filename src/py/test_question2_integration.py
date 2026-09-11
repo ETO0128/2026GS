@@ -39,6 +39,21 @@ class Question2IntegrationTests(unittest.TestCase):
         for record in result.days[1:]:
             self.assertLess(record.forecast.history_end, record.date)
 
+    def test_stochastic_plan_carries_realized_soc(self) -> None:
+        result = run_question2(
+            make_data(4),
+            Question2Config(
+                forecast=ForecastConfig(method="seven_day"),
+                planner="stochastic",
+                scenario_count=2,
+                scenario_decay=0.9,
+            ),
+            ColdStartForecast(np.full(144, 600.0), np.zeros(144)),
+        )
+        self.assertGreater(result.days[1].expected_emergency_cost_yuan, -1e-8)
+        for previous, current in zip(result.days, result.days[1:]):
+            self.assertAlmostEqual(previous.execution.soc_kwh[-1], current.execution.soc_kwh[0], places=5)
+
 
 if __name__ == "__main__":
     unittest.main()

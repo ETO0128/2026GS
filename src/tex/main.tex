@@ -387,6 +387,36 @@ $e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界
 最为清晰；紧急购电只弥补实时供需缺口，不参与电价套利。每一日结算后均复核母线能量
 平衡、SOC 递推、容量与功率边界，并将实际日末 SOC 传递至下一日。
 
+为检验整日误差结构的价值，进一步构造两阶段随机线性规划。微网日前计划与不确定性
+运行分层的处理参考随机模型预测控制的调度框架\cite{parisio2016}；考虑到天气可能同时
+影响负荷和光伏，场景必须保留二者相关性\cite{liu2017}。对任一历史日 $j$，将其负荷
+预测残差 $\varepsilon^L_{j,1:T}$ 与光伏预测残差
+$\varepsilon^{\mathrm{pv}}_{j,1:T}$ 成对保留，并叠加至目标日点预测：
+\begin{equation}
+  L_{d,t}^{(j)}=\max(0,\widehat L_{d,t}+\varepsilon^L_{j,t}),\qquad
+  P_{d,t}^{(j)}=\max(0,\widehat P^{\mathrm{pv}}_{d,t}
+  +\varepsilon^{\mathrm{pv}}_{j,t}).
+  \label{eq:q2-joint-scenario}
+\end{equation}
+候选日先按季节与星期类型分组，再按完整日曲线距离筛选。时间指数衰减直接进入场景
+概率，而不再只用于展示预测曲线：
+\begin{equation}
+  \pi_{d,j}=\frac{s_{d,j}\lambda^{d-j}}
+  {\sum_{k\in C_d}s_{d,k}\lambda^{d-k}}.
+  \label{eq:q2-scenario-weight}
+\end{equation}
+第一阶段共同决定 $g_{d,t},c_{d,t},d_{d,t}$ 和 SOC 轨迹；第二阶段针对每个场景决定
+紧急购电 $h_{d,t}^{(j)}$ 与剩余电量 $w_{d,t}^{(j)}$，目标函数为
+\begin{equation}
+  \min\sum_t p_tg_{d,t}
+  +5\sum_{j\in C_d}\pi_{d,j}\sum_t p_th_{d,t}^{(j)}.
+  \label{eq:q2-stochastic-objective}
+\end{equation}
+场景数与衰减系数仅利用 1 月顺序运行费用，从
+$K\in\{7,14,28\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选择；2--12 月数据只作独立
+事后评价。由此选得 $K=28,\lambda=0.90$，保证指数衰减确实参与优化决策，同时避免
+以正式评价区间反向调参。
+
 \subsection{结果与分析}
 
 正式统计期内，负荷、光伏和净负荷的 RMSE 分别为
@@ -398,7 +428,7 @@ $e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界
 
 \begin{table}[H]
   \centering
-  \caption{问题二不同因果预测方案的全年费用比较}
+  \caption{问题二不同预测与调度方案的全年费用比较}
   \label{tab:q2-comparison}
   \begin{tabular}{lrrr}
     \toprule
@@ -408,14 +438,18 @@ $e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界
     最近七日均值 & 1530.67 & 163.50 & 1694.18 \\
     同星期类型均值 & 1652.69 & 367.03 & 2019.72 \\
     相似日指数衰减 & 1504.59 & 342.72 & 1847.32 \\
+    联合残差随机规划 & 1568.01 & 147.34 & 1715.35 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \tabref{tab:q2-comparison} 表明，点预测误差并非唯一决定因素：昨日同期计划费用最低，
 但因低估风险产生高额紧急购电；相似日指数衰减较昨日同期显著改善，却仍不及最近七日
-基准稳定。因此，本文不因方法复杂而强行选用相似日模型，而将全年总费用最低的最近七
-日方案作为正式结果。四个季节代表日的实际净负荷、点预测及风险修正曲线见
+基准稳定。联合残差随机规划将紧急购电费由 \num{163.50} 万元降至 \num{147.34} 万元，
+降幅约为 \SI{9.9}{\percent}，但计划购电费增加 \SI{2.4}{\percent}，剩余电量亦增加
+约 \SI{8.7}{\percent}，使总费用反而提高 \SI{1.25}{\percent}。因此，本文不因方法
+复杂而强行替换基线，而将全年总费用最低的最近七日分位数方案作为正式结果，将联合
+残差随机规划保留为风险偏好消融。四个季节代表日的实际净负荷、点预测及风险修正曲线见
 \figref{fig:q2-specified}。
 
 \begin{figure}[H]
@@ -535,6 +569,15 @@ $e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界
   \bibitem{acharya2020} S. K. Acharya, Y.-M. Wi, and J. Lee. Day-ahead forecasting
   for small-scale photovoltaic power based on similar day detection with selective
   weather variables[J]. Electronics, 2020, 9(7): 1117.
+
+  \bibitem{parisio2016} A. Parisio, E. Rikos, and L. Glielmo. Stochastic model
+  predictive control for economic/environmental operation management of microgrids:
+  An experimental case study[J]. Journal of Process Control, 2016, 43: 24--37.
+
+  \bibitem{liu2017} S. Liu, P. X. Liu, X. Wang, et al. Effects of correlated
+  photovoltaic power and load uncertainties on grid-connected microgrid day-ahead
+  scheduling[J]. IET Generation, Transmission \& Distribution, 2017, 11(14):
+  3620--3627.
 \end{thebibliography}
 
 \newpage
