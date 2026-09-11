@@ -34,3 +34,4 @@ src/tex/main.pdf
 src/outputs/*.npy
 src/outputs/*_run_log.txt
 src/outputs/*_run_err.txt
+src/outputs/*.xlsx
