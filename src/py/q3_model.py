@@ -114,9 +114,13 @@ class PvForecast3:
 
 
 # --------------------------------------------------------------------------- 预测
-def forecast_full(att, f3: PvForecast3, i: int, tau: int):
-    """当天 144 段的负荷预测（因果）与 τ 时刻的光伏预报（kWh）。"""
-    l_fc = q2.forecast_day(att, i)[0]
+def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0):
+    """当天 144 段的负荷预测（因果）与 τ 时刻的光伏预报（kWh）。
+
+    load_lam 为负荷预测的指数衰减系数（默认 1.0 = 纯均值）；问题二已表明
+    load_lam=0.9 的“同月+同类型+指数加权”预测误差明显更小，问题三据此允许调参。
+    """
+    l_fc = q2.forecast_day(att, i, lam=load_lam)[0]
     v_fc = np.zeros(q2.N)
     j0 = tau // 10
     if j0 < q2.N:
@@ -124,17 +128,21 @@ def forecast_full(att, f3: PvForecast3, i: int, tau: int):
     return l_fc, v_fc
 
 
-def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6):
-    """剩余时段 [τ,24:00) 的净负荷场景（同一预报时刻的历史预报误差）。"""
+def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
+                       load_lam: float = 1.0):
+    """剩余时段 [τ,24:00) 的净负荷场景（同一预报时刻的历史预报误差）。
+
+    历史预报误差必须用与当天一致的预测口径（load_lam）重算，否则场景与决策不同源。
+    """
     j0 = tau // 10
-    l_fc, v_fc = forecast_full(att, f3, i, tau)
+    l_fc, v_fc = forecast_full(att, f3, i, tau, load_lam)
     l_fc, v_fc = l_fc[j0:], v_fc[j0:]
     have = set(f3.days)
     idx = [j for j in q2.history_index(att, i) if att.dates[j] in have]
     dl, dv = [], []
     for j in idx:
         try:
-            pl = q2.forecast_day(att, j)[0][j0:]
+            pl = q2.forecast_day(att, j, lam=load_lam)[0][j0:]
             pv = f3.pv_kwh(att.dates[j], tau, j0, q2.N)
         except (KeyError, ValueError):
             continue
@@ -164,16 +172,20 @@ def expected_emergency(price, q, c, d, scen_net, weights) -> float:
     tot = 0.0
     for w, net in zip(weights, scen_net):
         gap = np.maximum(0.0, net + c - d - q)
-        tot += w * 5.0 * float((price * gap).sum())
-    return tot
+        tot += w * float((price * gap).sum())
+    return q2.EMG_MULTIPLIER * tot
 
 
 # --------------------------------------------------------------------------- 节点 LP
-def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust"):
+def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
+           plan_pen=None):
     """剩余时段最优 (q,c,d,w,e)。
 
     mode="plan"  : 0:00 制定计划（无调整费，q 自由）
     mode="adjust": 调整，与 q_plan 的差额按 50%/150% 计费
+    plan_pen     : 仅 mode="plan" 生效，各时段缺口的计价倍率（默认 5 倍紧急电价）。
+                   对后续节点可调整的时段，用较低的倍率即可反映“稍后可按 1.5 倍调整”
+                   的期权价值，避免 0:00 过度囤电。
     返回 q,c,d,w,e,fee,exp_emg_cost
     """
     m = len(l_fc)
@@ -191,8 +203,11 @@ def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust")
         obj[idx_dn:idx_dn + m] = -0.5 * price
     obj[idx_c:idx_c + m] += 1e-7
     obj[idx_d:idx_d + m] += 1e-7
+    pen = np.full(m, q2.EMG_MULTIPLIER)
+    if mode == "plan" and plan_pen is not None:
+        pen = np.asarray(plan_pen, dtype=float)[:m]
     for k, w in enumerate(weights):
-        obj[base + k * m: base + (k + 1) * m] = w * 5.0 * price
+        obj[base + k * m: base + (k + 1) * m] = w * pen * price
 
     A_eq = np.zeros((3 * m, nv))
     b_eq = np.zeros(3 * m)
@@ -258,7 +273,9 @@ def eval_seg(price, q, c, d, q_plan, scen_net, weights):
 # --------------------------------------------------------------------------- 单日仿真
 def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                  policy: str = "selective", tol: float = 1e-6, node_subset=None,
-                 price_plan=None) -> dict:
+                 price_plan=None, load_lam: float = 1.0,
+                 load_bias: bool = False, bias_clip: float = 0.4,
+                 lookahead_alpha: float = 5.0, exec_mode: str = "A") -> dict:
     """执行一天：0:00 计划 + 6:00/12:00/18:00 调整 + 实际结算。
 
     policy: "none" 不调整；"fixed" 固定调整；"selective" 仅当预期收益为正才调整
@@ -266,15 +283,26 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
     price_plan: 制定计划/调整时使用的电价（默认为实际电价 price）。问题四中若电价逐日波动
         且建模时并未预先得知，可传入"因果价格预测"，此时决策按 price_plan 优化、
         结算仍按实际价格 price 执行。
+    load_lam: 负荷预测的指数衰减系数（默认 1.0，与既有结果一致）。
+    load_bias: 是否用当日已实现负荷对剩余时段负荷预测做日级倍率校正（因果，默认关）。
+    lookahead_alpha: 0:00 计划中对“后续节点可调整时段”的缺口计价倍率（默认 5.0 = 只看
+        紧急购电）。取较小值（如 2.0）即反映“稍后可按 1.5 倍调整购电量补足”的期权价值，
+        使计划不再过度囤电。仅影响 0:00 计划，不影响调整与结算口径。
+    exec_mode: "A" 严格按（调整后）计划执行储能；"B" 购电量照付不误、储能内部根据
+        实际负荷/光伏日内再调度（与问题二 P2B 同口径），“充放电量”取再调度后的最终值。
     """
     price_plan = price if price_plan is None else price_plan
     l_act, v_act = att.load_kwh[i], att.pv_kwh[i]
     net_act = l_act - v_act
     nodes = [1, 2, 3] if node_subset is None else list(node_subset)
 
-    l_fc, v_fc = forecast_full(att, f3, i, 0)
-    scen, w = residual_scenarios(att, f3, i, 0, s_max)
-    plan = seg_lp(price_plan, None, l_fc, v_fc, q2.E0_KWH, scen, w, "plan")
+    l_fc, v_fc = forecast_full(att, f3, i, 0, load_lam)
+    scen, w = residual_scenarios(att, f3, i, 0, s_max, load_lam)
+    plan_pen = np.full(q2.N, q2.EMG_MULTIPLIER)
+    if lookahead_alpha != q2.EMG_MULTIPLIER:      # 可调整时段（6:00 之后）按更低倍率对冲
+        plan_pen[NODE_MIN[1] // 10:] = lookahead_alpha
+    plan = seg_lp(price_plan, None, l_fc, v_fc, q2.E0_KWH, scen, w, "plan",
+                  plan_pen=plan_pen)
     q_plan = plan["q"].copy()
     q_cur, c_cur, d_cur = plan["q"].copy(), plan["c"].copy(), plan["d"].copy()
     e_cur = plan["e"].copy()
@@ -286,8 +314,14 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                         "adjusted": False, "fee": 0.0, "dq_kwh": 0.0})
             continue
         j0 = NODE_MIN[k] // 10
-        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k])
-        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max)
+        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k], load_lam)
+        if load_bias and j0 > 0:                      # 用已实现的上午负荷校正全天水平
+            obs, fc = att.load_kwh[i][:j0].sum(), l_fc[:j0].sum()
+            if fc > 1e-9:
+                ratio = float(np.clip(obs / fc, 1.0 - bias_clip, 1.0 + bias_clip))
+                l_fc = l_fc.copy()
+                l_fc[j0:] *= ratio
+        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam)
         qp_seg = q_plan[j0:]
         keep = eval_seg(price_plan[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w)
         J_keep = keep["fee"] + keep["exp_emg_cost"]
@@ -306,10 +340,18 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
     committed = q_cur + d_cur - c_cur
     shortfall = np.maximum(0.0, net_act - committed)
     cost_emg = float(5.0 * (price * shortfall).sum())
+    c_final, d_final, e_final = c_cur, d_cur, e_cur
+    if exec_mode == "B":
+        from q2_stochastic import realtime_dispatch
+        rt = realtime_dispatch(att, q_cur, att.load_kwh[i], att.pv_kwh[i],
+                               float(e_cur[0]), float(e_cur[-1]))
+        c_final, d_final, e_final = rt["c"], rt["d"], rt["e"]
+        shortfall = rt["emg"]
+        cost_emg = rt["emg_cost"]
     return {
         "date": att.dates[i],
-        "q_plan": q_plan, "q_adj": q_cur, "c_adj": c_cur, "d_adj": d_cur,
-        "e_plan": plan["e"], "e_adj": e_cur,
+        "q_plan": q_plan, "q_adj": q_cur, "c_adj": c_final, "d_adj": d_final,
+        "e_plan": plan["e"], "e_adj": e_final,
         "plan_cost": float((price * q_plan).sum()),
         "fee": fee_seg(price, q_plan, q_cur),
         "emg_kwh": float(shortfall.sum()), "emg_cost": cost_emg,
