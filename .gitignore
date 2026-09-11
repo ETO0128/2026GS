@@ -1,5 +1,6 @@
 # Local working files
 tmp/
+.worktrees/
 
 # Microsoft Office temporary lock files
 ~$*
