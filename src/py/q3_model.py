@@ -36,6 +36,8 @@ import numpy as np
 from scipy.optimize import linprog
 
 import q2_model as q2
+from question2_data import YearData
+from question2_forecast import ForecastConfig, forecast_day as official_forecast_day
 
 NODE_MIN = [0, 360, 720, 1080]
 NODE_NAME = ["0:00", "6:00", "12:00", "18:00"]
@@ -126,68 +128,121 @@ class PvForecast3:
     def hourly(self, day: dt.date, tau: int) -> np.ndarray:
         return self.data[(day, tau)]
 
-    def pv_kwh(self, day: dt.date, tau: int, j0: int, j1: int) -> np.ndarray:
-        """把 τ 时刻发布的预报映射到时段 [j0, j1) 的电量（kWh）。"""
+    def pv_kwh(self, day: dt.date, tau: int, j0: int, j1: int,
+               interpolation: str = "step") -> np.ndarray:
+        """把整点功率预报映射到十分钟电量。
+
+        ``linear`` 在相邻预报点间作非负线性插值；``step`` 保留原逐小时常值
+        口径，专门用于消融实验。最后一个预报点之后采用末值外推。
+        """
         arr = self.hourly(day, tau)
-        out = np.empty(j1 - j0)
-        for k, j in enumerate(range(j0, j1)):
-            offset = (10 * j - tau) // 60            # 落在第 (offset+1) 个预报小时
-            if offset < 0 or offset >= 24:
-                raise ValueError(f"时段 {j} 超出 {tau} 时刻预报的 24 小时范围")
-            out[k] = arr[offset] * q2.DT_H
-        return out
+        minute = 10.0 * np.arange(j0, j1)
+        horizon = minute - float(tau)
+        if np.any(horizon < 0) or np.any(horizon >= 24 * 60):
+            raise ValueError(f"时段 [{j0},{j1}) 超出 {tau} 时刻预报的 24 小时范围")
+        if interpolation == "step":
+            power = arr[np.floor(horizon / 60.0).astype(int)]
+        elif interpolation == "linear":
+            # 第 h 个数表示未来第 h 个整点附近的功率，首点锚定发布时刻。
+            knots = np.arange(24, dtype=float) * 60.0
+            power = np.interp(horizon, knots, arr, left=arr[0], right=arr[-1])
+        else:
+            raise ValueError("interpolation must be 'linear' or 'step'")
+        return np.maximum(power, 0.0) * q2.DT_H
 
 
 # --------------------------------------------------------------------------- 预测
+def _official_year(att) -> YearData:
+    """零拷贝适配正式问题二数据结构，统一 Q2/Q3 的因果预测底座。"""
+    return YearData(tuple(att.dates), np.arange(0, 1440, 10), att.price,
+                    att.load_kw, att.pv_kw)
+
+
 def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0,
-                  fc_kwargs: dict | None = None):
+                  fc_kwargs: dict | None = None, pv_interpolation: str = "step",
+                  forecast_source: str = "legacy"):
     """当天 144 段的负荷预测（因果）与 τ 时刻的光伏预报（kWh）。
 
     load_lam 为负荷预测的指数衰减系数（默认 1.0 = 纯均值）；问题二已表明
     load_lam=0.9 的“同月+同类型+指数加权”预测误差明显更小，问题三据此允许调参。
     fc_kwargs 可覆盖负荷预测口径（如七日均值 dict(use_month=False, use_type=False, k_max=7)）。
     """
-    l_fc = q2.forecast_day(att, i, lam=load_lam, **(fc_kwargs or {}))[0]
+    if forecast_source == "official":
+        # 正式问题二采用七日均值作为点预测；条件残差只用于日前安全分位数，
+        # 此处由滚动残差场景显式描述不确定性，不能再叠加一次分位数修正。
+        cfg = ForecastConfig(method="seven_day", planning_method="historical_net")
+        l_fc = official_forecast_day(_official_year(att), i, cfg).load_kw * q2.DT_H
+    elif forecast_source == "legacy":
+        l_fc = q2.forecast_day(att, i, lam=load_lam, **(fc_kwargs or {}))[0]
+    else:
+        raise ValueError("forecast_source must be 'official' or 'legacy'")
     v_fc = np.zeros(q2.N)
     j0 = tau // 10
     if j0 < q2.N:
-        v_fc[j0:] = f3.pv_kwh(att.dates[i], tau, j0, q2.N)
+        v_fc[j0:] = f3.pv_kwh(att.dates[i], tau, j0, q2.N, pv_interpolation)
     return l_fc, v_fc
 
 
 def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
                        load_lam: float = 1.0, scen_scale: float = 1.0,
-                       fc_kwargs: dict | None = None):
+                       fc_kwargs: dict | None = None,
+                       scenario_decay: float = 0.95,
+                       pv_interpolation: str = "step",
+                       forecast_source: str = "legacy",
+                       scenario_weighting: str = "legacy"):
     """剩余时段 [τ,24:00) 的净负荷场景（同一预报时刻的历史预报误差）。
 
     历史预报误差必须用与当天一致的预测口径（load_lam）重算，否则场景与决策不同源。
     scen_scale 用于按比例放大/缩小预报误差，做“预报质量”敏感性分析。
     """
     j0 = tau // 10
-    l_fc, v_fc = forecast_full(att, f3, i, tau, load_lam, fc_kwargs)
+    l_fc, v_fc = forecast_full(att, f3, i, tau, load_lam, fc_kwargs,
+                               pv_interpolation, forecast_source)
     l_fc, v_fc = l_fc[j0:], v_fc[j0:]
     have = set(f3.days)
     idx = [j for j in q2.history_index(att, i) if att.dates[j] in have]
-    dl, dv = [], []
+    dl, dv, valid_idx = [], [], []
     for j in idx:
         try:
-            pl = q2.forecast_day(att, j, lam=load_lam, **(fc_kwargs or {}))[0][j0:]
-            pv = f3.pv_kwh(att.dates[j], tau, j0, q2.N)
+            pl = forecast_full(att, f3, j, tau, load_lam, fc_kwargs,
+                               pv_interpolation, forecast_source)[0][j0:]
+            pv = f3.pv_kwh(att.dates[j], tau, j0, q2.N, pv_interpolation)
         except (KeyError, ValueError):
             continue
         dl.append(att.load_kwh[j][j0:] - pl)
         dv.append(att.pv_kwh[j][j0:] - pv)
+        valid_idx.append(j)
     if not dl:
         return [l_fc - v_fc], np.array([1.0])
     dl, dv = np.array(dl), np.array(dv)
-    order = np.argsort(dl.sum(axis=1))
+    if scenario_weighting == "legacy":
+        order = np.argsort(dl.sum(axis=1), kind="stable")
+    elif scenario_weighting == "weighted":
+        order = None
+    else:
+        raise ValueError("scenario_weighting must be 'weighted' or 'legacy'")
+    # 用完整残差轨迹的标准化距离选相似场景，避免只按日误差总量排序。
+    target_shape = l_fc - v_fc
+    historical_shape = np.array([att.load_kwh[j][j0:] - att.pv_kwh[j][j0:] for j in valid_idx])
+    scale = max(float(np.std(target_shape)), 1.0)
+    distance = np.sqrt(np.mean(((historical_shape - target_shape) / scale) ** 2, axis=1))
+    if order is None:
+        order = np.argsort(distance, kind="stable")
     if len(order) > s_max:
         sel = order[np.rint(np.linspace(0, len(order) - 1, s_max)).astype(int)]
     else:
         sel = order
     scen = [np.maximum(0.0, l_fc + scen_scale * dl[s]) - np.maximum(0.0, v_fc + scen_scale * dv[s])
             for s in sel]
-    return scen, np.full(len(scen), 1.0 / len(scen))
+    ages = np.asarray([i - valid_idx[s] for s in sel], dtype=float)
+    same_type = np.asarray([(att.dates[valid_idx[s]].weekday() >= 5) == (att.dates[i].weekday() >= 5)
+                            for s in sel], dtype=float)
+    if scenario_weighting == "weighted":
+        raw = np.power(scenario_decay, ages) * np.exp(-distance[sel]) * (1.0 + 0.25 * same_type)
+        weights = raw / raw.sum()
+    else:
+        weights = np.full(len(scen), 1.0 / len(scen))
+    return scen, weights
 
 
 # --------------------------------------------------------------------------- 费用
@@ -208,7 +263,8 @@ def expected_emergency(price, q, c, d, scen_net, weights, P: "Params" = DEFAULT_
 
 # --------------------------------------------------------------------------- 节点 LP
 def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
-           plan_pen=None, P: "Params" = DEFAULT_PARAMS):
+           plan_pen=None, P: "Params" = DEFAULT_PARAMS,
+           terminal_min=None, terminal_max=None, terminal_value: float = 0.0):
     """剩余时段最优 (q,c,d,w,e)。
 
     mode="plan"  : 0:00 制定计划（无调整费，q 自由）
@@ -238,6 +294,7 @@ def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
         pen = np.asarray(plan_pen, dtype=float)[:m]
     for k, w in enumerate(weights):
         obj[base + k * m: base + (k + 1) * m] = w * pen * price
+    obj[idx_e + m] -= float(terminal_value)
 
     A_eq = np.zeros((3 * m, nv))
     b_eq = np.zeros(3 * m)
@@ -279,7 +336,9 @@ def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
             bounds[idx_up + t] = zero
             bounds[idx_dn + t] = zero
     bounds[idx_e] = (e_start, e_start)
-    bounds[idx_e + m] = (P.e0, P.e0)              # 日周期终值
+    lo = P.e0 if terminal_min is None else float(terminal_min)
+    hi = lo if terminal_max is None else float(terminal_max)
+    bounds[idx_e + m] = (lo, hi)
 
     res = linprog(obj, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds,
                   method="highs")
@@ -307,7 +366,11 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                  load_bias: bool = False, bias_clip: float = 0.4,
                  lookahead_alpha: float = 5.0, exec_mode: str = "A",
                  params: "Params" = DEFAULT_PARAMS, scen_scale: float = 1.0,
-                 fc_kwargs: dict | None = None) -> dict:
+                 fc_kwargs: dict | None = None,
+                 scenario_decay: float = 0.95, pv_interpolation: str = "step",
+                 initial_soc=None, terminal_mode: str = "cycle",
+                 terminal_value: float = 0.0, forecast_source: str = "legacy",
+                 scenario_weighting: str = "legacy", initial_plan=None) -> dict:
     """执行一天：0:00 计划 + 6:00/12:00/18:00 调整 + 实际结算。
 
     policy: "none" 不调整；"fixed" 固定调整；"selective" 仅当预期收益为正才调整
@@ -327,18 +390,41 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
     fc_kwargs: 负荷预测口径覆盖项（默认 None = 同月 $+$ 同类型均值）。
     """
     P = params
+    start_soc = P.e0 if initial_soc is None else float(initial_soc)
+    if terminal_mode == "cycle":
+        terminal_min = terminal_max = start_soc
+    elif terminal_mode == "carry":
+        terminal_min, terminal_max = P.e_min, P.e_max
+    else:
+        raise ValueError("terminal_mode must be 'cycle' or 'carry'")
     price_plan = price if price_plan is None else price_plan
     l_act, v_act = att.load_kwh[i], att.pv_kwh[i]
     net_act = l_act - v_act
     nodes = [1, 2, 3] if node_subset is None else list(node_subset)
 
-    l_fc, v_fc = forecast_full(att, f3, i, 0, load_lam, fc_kwargs)
-    scen, w = residual_scenarios(att, f3, i, 0, s_max, load_lam, scen_scale, fc_kwargs)
-    plan_pen = np.full(q2.N, P.emg)
-    if lookahead_alpha != P.emg:                  # 可调整时段（6:00 之后）按更低倍率对冲
-        plan_pen[NODE_MIN[1] // 10:] = lookahead_alpha
-    plan = seg_lp(price_plan, None, l_fc, v_fc, P.e0, scen, w, "plan",
-                  plan_pen=plan_pen, P=P)
+    if initial_plan is None:
+        l_fc, v_fc = forecast_full(att, f3, i, 0, load_lam, fc_kwargs,
+                                   pv_interpolation, forecast_source)
+        scen, w = residual_scenarios(att, f3, i, 0, s_max, load_lam, scen_scale,
+                                     fc_kwargs, scenario_decay, pv_interpolation, forecast_source,
+                                     scenario_weighting)
+        plan_pen = np.full(q2.N, P.emg)
+        if lookahead_alpha != P.emg:              # 可调整时段（6:00 之后）按更低倍率对冲
+            plan_pen[NODE_MIN[1] // 10:] = lookahead_alpha
+        plan = seg_lp(price_plan, None, l_fc, v_fc, start_soc, scen, w, "plan",
+                      plan_pen=plan_pen, P=P, terminal_min=terminal_min,
+                      terminal_max=terminal_max, terminal_value=terminal_value)
+    else:
+        required = ("q", "c", "d", "e")
+        if any(key not in initial_plan for key in required):
+            raise ValueError("initial_plan must contain q, c, d and e")
+        plan = {key: np.asarray(initial_plan[key], dtype=float).copy() for key in required}
+        if any(plan[key].shape != (q2.N,) for key in ("q", "c", "d")) or plan["e"].shape != (q2.N + 1,):
+            raise ValueError("initial_plan arrays must contain one complete day")
+        if abs(float(plan["e"][0]) - start_soc) > 1e-5:
+            raise ValueError("initial_plan SOC does not match initial_soc")
+        plan["fee"] = float(np.dot(price_plan, plan["q"]))
+        plan["exp_emg_cost"] = 0.0
     q_plan = plan["q"].copy()
     q_cur, c_cur, d_cur = plan["q"].copy(), plan["c"].copy(), plan["d"].copy()
     e_cur = plan["e"].copy()
@@ -350,21 +436,26 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                         "adjusted": False, "fee": 0.0, "dq_kwh": 0.0})
             continue
         j0 = NODE_MIN[k] // 10
-        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k], load_lam, fc_kwargs)
+        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k], load_lam, fc_kwargs, pv_interpolation,
+                                   forecast_source)
         if load_bias and j0 > 0:                      # 用已实现的上午负荷校正全天水平
             obs, fc = att.load_kwh[i][:j0].sum(), l_fc[:j0].sum()
             if fc > 1e-9:
                 ratio = float(np.clip(obs / fc, 1.0 - bias_clip, 1.0 + bias_clip))
                 l_fc = l_fc.copy()
                 l_fc[j0:] *= ratio
-        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam, scen_scale, fc_kwargs)
+        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam, scen_scale,
+                                     fc_kwargs, scenario_decay, pv_interpolation, forecast_source,
+                                     scenario_weighting)
         qp_seg = q_plan[j0:]
         keep = eval_seg(price_plan[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w, P)
         J_keep = keep["fee"] + keep["exp_emg_cost"]
         adj = seg_lp(price_plan[j0:], qp_seg, l_fc[j0:], v_fc[j0:], e_cur[j0], scen, w, "adjust",
-                     P=P)
+                     P=P, terminal_min=terminal_min, terminal_max=terminal_max,
+                     terminal_value=terminal_value)
         J_adj = adj["fee"] + adj["exp_emg_cost"]
-        take = (policy == "fixed") or (policy == "selective" and J_adj < J_keep - tol)
+        gain = J_keep - J_adj
+        take = (policy == "fixed") or (policy == "selective" and gain > tol)
         if take:
             dq = float(np.abs(adj["q"] - q_cur[j0:]).sum())
             q_cur[j0:], c_cur[j0:], d_cur[j0:] = adj["q"], adj["c"], adj["d"]
@@ -372,7 +463,8 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
         else:
             dq = 0.0
         log.append({"node": NODE_NAME[k], "J_keep": float(J_keep), "J_adj": float(J_adj),
-                    "adjusted": bool(take), "fee": float(adj["fee"]), "dq_kwh": dq})
+                    "adjusted": bool(take), "fee": float(adj["fee"]), "dq_kwh": dq,
+                    "expected_gain": float(gain), "threshold": float(tol)})
 
     committed = q_cur + d_cur - c_cur
     shortfall = np.maximum(0.0, net_act - committed)

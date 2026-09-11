@@ -1,0 +1,117 @@
+{
+  "days": 334,
+  "variants": {
+    "legacy_reproduction": {
+      "total_yuan": 15773614.718738494,
+      "emergency_kwh": 465083.5975687563,
+      "adjustments": 607,
+      "mean_expected_gain_yuan": 876.1601538794996,
+      "terminal_soc_kwh": 6000.0
+    },
+    "official_forecast_only": {
+      "total_yuan": 18950991.514054015,
+      "emergency_kwh": 1188550.218785525,
+      "adjustments": 568,
+      "mean_expected_gain_yuan": 913.8322848585972,
+      "terminal_soc_kwh": 6000.0
+    },
+    "plus_pv_interpolation": {
+      "total_yuan": 19361699.291373283,
+      "emergency_kwh": 1200680.0966544086,
+      "adjustments": 512,
+      "mean_expected_gain_yuan": 652.5741332239983,
+      "terminal_soc_kwh": 6000.0
+    },
+    "plus_weighted_scenarios": {
+      "total_yuan": 19391087.4548873,
+      "emergency_kwh": 1215461.5016812459,
+      "adjustments": 527,
+      "mean_expected_gain_yuan": 809.4246521593949,
+      "terminal_soc_kwh": 6000.0
+    },
+    "legacy_plus_interpolation": {
+      "total_yuan": 16333458.31249454,
+      "emergency_kwh": 471377.90855474677,
+      "adjustments": 494,
+      "mean_expected_gain_yuan": 506.8029109093385,
+      "terminal_soc_kwh": 6000.0
+    },
+    "legacy_plus_weighted_scenarios": {
+      "total_yuan": 15832956.823804524,
+      "emergency_kwh": 480888.64819387643,
+      "adjustments": 624,
+      "mean_expected_gain_yuan": 1043.4819619576253,
+      "terminal_soc_kwh": 6000.0
+    },
+    "legacy_plus_both": {
+      "total_yuan": 16400321.418077655,
+      "emergency_kwh": 480886.62889975077,
+      "adjustments": 507,
+      "mean_expected_gain_yuan": 672.4611901814627,
+      "terminal_soc_kwh": 6000.0
+    }
+  },
+  "thresholds": {
+    "0.0": {
+      "total_yuan": 940431.4682177597,
+      "emergency_kwh": 13917.582171969447,
+      "adjustments": 31,
+      "mean_expected_gain_yuan": 611.505537822241,
+      "terminal_soc_kwh": 6000.0
+    },
+    "25.0": {
+      "total_yuan": 940431.4682177597,
+      "emergency_kwh": 13917.582171969447,
+      "adjustments": 30,
+      "mean_expected_gain_yuan": 611.505537822241,
+      "terminal_soc_kwh": 6000.0
+    },
+    "50.0": {
+      "total_yuan": 940431.4682177597,
+      "emergency_kwh": 13917.582171969447,
+      "adjustments": 30,
+      "mean_expected_gain_yuan": 611.505537822241,
+      "terminal_soc_kwh": 6000.0
+    },
+    "100.0": {
+      "total_yuan": 941105.4285710268,
+      "emergency_kwh": 14165.95582398604,
+      "adjustments": 28,
+      "mean_expected_gain_yuan": 593.5587509316159,
+      "terminal_soc_kwh": 6000.0
+    },
+    "200.0": {
+      "total_yuan": 941156.3250306367,
+      "emergency_kwh": 14156.43687398604,
+      "adjustments": 27,
+      "mean_expected_gain_yuan": 593.5587509316159,
+      "terminal_soc_kwh": 6000.0
+    }
+  },
+  "node_subsets": {},
+  "calibration_variant_cost_yuan": {
+    "legacy_reproduction": 941892.953066889,
+    "official_forecast_only": 1204950.5739484306,
+    "plus_pv_interpolation": 1217066.541354627,
+    "plus_weighted_scenarios": 1218366.9532048418,
+    "legacy_plus_interpolation": 972480.1416021017,
+    "legacy_plus_weighted_scenarios": 940431.4682177597,
+    "legacy_plus_both": 967000.7084491301
+  },
+  "selected_variant": "legacy_plus_weighted_scenarios",
+  "locked_threshold_yuan": 0.0,
+  "final": {
+    "total_yuan": 15832956.823804524,
+    "emergency_kwh": 480888.64819387643,
+    "adjustments": 624,
+    "mean_expected_gain_yuan": 1043.4819619576253,
+    "terminal_soc_kwh": 6000.0
+  },
+  "carry_terminal_value": {
+    "total_yuan": 15842591.08738482,
+    "emergency_kwh": 480902.0142328698,
+    "adjustments": 615,
+    "mean_expected_gain_yuan": 1044.3165282606901,
+    "terminal_soc_kwh": 1200.0
+  }
+}
