@@ -166,10 +166,13 @@ def _solve_lexicographic_lp(
     throughput_objective = np.zeros(variable_count)
     throughput_objective[charge] = 1.0
     throughput_objective[discharge] = 1.0
+    economic_tolerance = max(1e-9, abs(float(economic_result.fun)) * 1e-12)
     tie_break_result = linprog(
         throughput_objective,
-        A_eq=np.vstack((equality, cost_objective)),
-        b_eq=np.append(rhs, economic_result.fun),
+        A_ub=cost_objective.reshape(1, -1),
+        b_ub=np.asarray([economic_result.fun + economic_tolerance]),
+        A_eq=equality,
+        b_eq=rhs,
         bounds=bounds,
         method="highs",
     )

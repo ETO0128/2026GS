@@ -61,7 +61,16 @@
 
 \subsection{问题二分析}
 
-% TODO：预测误差、储能安全余量和紧急购电。
+问题二由确定性调度转化为不完全信息下的日前决策。每天 0:00 只能利用此前已经发生
+的负荷和光伏数据制定全天计划，计划购电费用一经产生便无法撤回；若实际净需求超过
+计划供给，缺口需按正常电价的五倍紧急购电。因此，该问题不能仅追求点预测误差最小，
+还必须处理“计划过少导致高额缺电惩罚、计划过多造成购电浪费”之间的不对称风险。
+
+据此，本文将问题二分为因果预测、风险修正日前优化和真实数据结算三个层次。预测层
+分别预测负荷与光伏，并以历史净负荷的条件分位数修正计划需求；优化层复用问题一的
+储能物理约束，日初储电量由上一日实际结束状态传递；结算层保持全天计划购电与充放电
+策略不变，仅以紧急购电和弃电平衡预测偏差。全过程按日期顺序推进，确保任一天的决策
+不使用当天及未来的真实数据。
 
 \subsection{问题三分析}
 
@@ -90,6 +99,9 @@
   \item 储能以 24 小时为一个运行周期，0:00 和 24:00 的储电量均为
   \SI{6000}{kWh}。附件中标记为 ``0:00+1'' 的周期数据在计算时旋转到序列首端，求解后
   再按结果模板的原顺序写回。
+  \item 问题二只在 2025 年 1 月 1 日 0:00 将储电量初始化为
+  \SI{6000}{kWh}；其后每日初始储电量等于上一日实际结束储电量，不再逐日人为重置。
+  1 月 1 日无可用历史日，采用附件 1 曲线作为冷启动先验。
 \end{enumerate}
 
 \section{符号说明}
@@ -111,6 +123,8 @@
     $d_t$ & 储能放电量 & \si{kWh} \\
     $e_t$ & 储能系统的储电量 & \si{kWh} \\
     $w_t$ & 无法消纳的弃光量 & \si{kWh} \\
+    $q_t$ & 问题二的风险修正净需求电量 & \si{kWh} \\
+    $h_t$ & 实际运行中的紧急购电量 & \si{kWh} \\
     $\eta_c,\eta_d$ & 储能充电效率和放电效率 & -- \\
     $\Delta t$ & 单个决策时段的长度 & \si{h} \\
     \bottomrule
@@ -141,7 +155,7 @@
 $0{:}00,0{:}10,\ldots,23{:}50$ 的状态递推顺序。问题一的输入和调度方案均按日周期
 重复，因此该循环移位不改变目标函数值和可行域；求解完成后再将结果还原至模板顺序。
 
-图~\ref{fig:q1-input} 给出了负荷、光伏预测功率和分时电价的日内变化。负荷曲线与
+\figref{fig:q1-input} 给出了负荷、光伏预测功率和分时电价的日内变化。负荷曲线与
 光伏出力曲线存在明显的时序差异，部分中午时段的光伏功率高于同期负荷；与此同时，
 电价在日内呈现显著峰谷差异。因此，储能可以在低价或光伏富余时段吸收电量，并在
 高价时段释放电量，从而实现跨时段能量转移。
@@ -155,7 +169,29 @@ $0{:}00,0{:}10,\ldots,23{:}50$ 的状态递推顺序。问题一的输入和调�
 
 \subsection{负荷与光伏预测}
 
-% TODO：说明因果数据划分、预测模型和误差评价。
+对问题二的全年数据采用扩展窗口顺序预测\cite{hyndman2021}。设第 $d$ 日决策时能够使用的历史日集合为
+$\mathcal H_d=\{1,2,\ldots,d-1\}$，任何预测量均不得访问第 $d$ 日及其后的真实数据。
+将 1 月作为状态和预测的热启动区间，正式统计范围为 2 月 1 日至 12 月 31 日。
+
+为建立稳定且可解释的基准，负荷与光伏分别采用最近七个可用历史日的同一时段均值：
+\begin{equation}
+  \widehat L_{d,t}=\frac{1}{m_d}\sum_{j=d-m_d}^{d-1}L_{j,t},\qquad
+  \widehat P^{\mathrm{pv}}_{d,t}=\frac{1}{m_d}\sum_{j=d-m_d}^{d-1}P^{\mathrm{pv}}_{j,t},
+  \quad m_d=\min(7,d-1).
+  \label{eq:q2-seven-day}
+\end{equation}
+同时构造“工作日类型和季节分组、曲线形状筛选、时间指数衰减”的相似日对照。若
+$C_d$ 为只含历史日的候选集合，则
+\begin{equation}
+  \widehat y_{d,t}=
+  \frac{\sum_{j\in C_d}s_{d,j}\lambda^{d-j}y_{j,t}}
+       {\sum_{j\in C_d}s_{d,j}\lambda^{d-j}},
+  \label{eq:q2-similar}
+\end{equation}
+其中 $s_{d,j}$ 为基于上一日已观测曲线计算的相似度，$\lambda=0.95$。相似日的日历
+筛选和曲线距离构造参考了负荷与光伏预测中的相似日方法\cite{mandal2006,acharya2020}。该模型用于检验
+“先分组筛选、再指数衰减”的有效性，而正式方案依据统一的全年事后评价选择更稳定的
+七日基准。预测性能采用 MAE、RMSE 与 Bias 评价，并同时报告负荷、光伏和净负荷误差。
 
 \subsection{电价数据处理}
 
@@ -218,7 +254,7 @@ $C=C^*$，进一步求解
 
 \subsection{结果与分析}
 
-求解所得指定时段购电计划见表~\ref{tab:q1-purchase}。全天累计购电量为
+求解所得指定时段购电计划见\tabref{tab:q1-purchase}。全天累计购电量为
 \SI{59482.6990}{kWh}，对应购电费用为 \num{35126.8486} 元。
 
 \begin{table}[H]
@@ -235,7 +271,7 @@ $C=C^*$，进一步求解
   \end{tabular}
 \end{table}
 
-储能设备在六个四小时时段内的充放电结果见表~\ref{tab:q1-storage}。全天累计充电量为
+储能设备在六个四小时时段内的充放电结果见\tabref{tab:q1-storage}。全天累计充电量为
 \SI{20740.6661}{kWh}，累计放电量为 \SI{16799.9396}{kWh}。在日首、日末储电量相等的
 条件下，两者之比为 $0.81$，与往返效率 $\eta_c\eta_d=0.81$ 相符，从数值上验证了
 状态转移方程与能量统计口径的一致性。
@@ -258,7 +294,7 @@ $C=C^*$，进一步求解
   \end{tabular}
 \end{table}
 
-由图~\ref{fig:q1-schedule} 可知，优化方案在低价时段增加购电并为储能充电，在光伏
+由\figref{fig:q1-schedule} 可知，优化方案在低价时段增加购电并为储能充电，在光伏
 出力较高的时段降低外网购电，在晚间高价时段利用储能放电满足部分负荷。最低电价
 出现在 5:40--5:50，为 \num{0.3713} 元/kWh；最高电价出现在 20:40--20:50，为
 \num{1.3952} 元/kWh。充放电时序总体响应电价变化，同时受到净负荷、储电量边界和
@@ -271,7 +307,7 @@ $C=C^*$，进一步求解
   \label{fig:q1-schedule}
 \end{figure}
 
-图~\ref{fig:q1-soc} 显示，储电量始终保持在 \SIrange{1200}{10800}{kWh} 内，并在
+\figref{fig:q1-soc} 显示，储电量始终保持在 \SIrange{1200}{10800}{kWh} 内，并在
 部分时段达到容量边界，表明储能容量约束在最优调度中发挥了实际作用。0:00 与 24:00
 的储电量均为 \SI{6000}{kWh}，满足周期边界条件。最大能量平衡残差为
 $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh，且各时段
@@ -303,15 +339,118 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
 
 \subsection{日前计划与紧急购电机制}
 
-% TODO：定义计划购电、实际供需缺口和五倍价格紧急购电。
+记 $D_{d,t}=(L_{d,t}-P^{\mathrm{pv}}_{d,t})\Delta t$ 为净需求电量。忽略储能耦合时，单时段购电
+计划 $g$ 的期望费用可写为
+\begin{equation}
+  C(g)=p_tg+5p_t\,\mathbb E[(D-g)^+].
+  \label{eq:q2-newsvendor}
+\end{equation}
+由一阶条件可得 $\Pr(D>g)=1/5$，故最优计划对应净需求的 80\% 条件分位数。本文在
+每个时段取最近七日历史净负荷功率的 80\% 经验分位数 $\widetilde q_{d,t}$，并令
+$q_{d,t}=\widetilde q_{d,t}\Delta t$，将其作为含储能联合优化的风险修正需求电量。
+该分位数结论用于确定风险水平，而不是用全年数据搜索参数。
+
+以 $q_{d,t}^{+}=\max(q_{d,t},0)$ 和
+$q_{d,t}^{-}=\max(-q_{d,t},0)$ 分别表示等效负荷与等效光伏，日前模型为
+\begin{equation}
+  \min\sum_{t=0}^{T-1}p_tg_{d,t},
+  \label{eq:q2-plan-objective}
+\end{equation}
+\begin{equation}
+  g_{d,t}+q_{d,t}^{-}+d_{d,t}
+  =q_{d,t}^{+}+c_{d,t}+w_{d,t},
+  \label{eq:q2-plan-balance}
+\end{equation}
+并满足式~\eqref{eq:q1-soc}--\eqref{eq:q1-flow-bound} 所示储能约束。每日初始状态满足
+$e_{d,0}=e_{d-1,T}$，并设置 $e_{d,T}\ge\SI{6000}{kWh}$ 的安全储备下界，从而兼顾
+跨日连续性和下一日供电能力。
 
 \subsection{优化与控制策略}
 
-% TODO：说明预测模型、基准优化器以及强化学习修正策略。
+全天计划购电量和储能充放电量在 0:00 同时确定。真实运行时保持二者不变，令
+\begin{equation}
+  r_{d,t}=l_{d,t}+c_{d,t}-v_{d,t}-d_{d,t}-g_{d,t},
+\end{equation}
+则紧急购电量与弃电量分别为
+\begin{equation}
+  h_{d,t}=\max(r_{d,t},0),\qquad
+  w^{\mathrm{act}}_{d,t}=\max(-r_{d,t},0).
+  \label{eq:q2-settlement}
+\end{equation}
+全年实际费用为
+\begin{equation}
+  C^{\mathrm{act}}=
+  \sum_d\sum_t p_tg_{d,t}+5\sum_d\sum_t p_th_{d,t}.
+  \label{eq:q2-total-cost}
+\end{equation}
+固定执行基线不会利用时段结束后才能确认的真实平均功率调整当前动作，因此其信息边界
+最为清晰；紧急购电只弥补实时供需缺口，不参与电价套利。每一日结算后均复核母线能量
+平衡、SOC 递推、容量与功率边界，并将实际日末 SOC 传递至下一日。
 
 \subsection{结果与分析}
 
-% TODO：填写 result2.xlsx，统计正常购电、紧急购电和总费用。
+正式统计期内，负荷、光伏和净负荷的 RMSE 分别为
+\SI{955.9245}{kW}、\SI{303.8577}{kW} 和 \SI{1006.5251}{kW}。计划购电量为
+\SI{24714266.9064}{kWh}，计划购电费为 \num{15306749.50} 元；紧急购电量为
+\SI{417720.3571}{kWh}，对应费用为 \num{1635037.49} 元，故总费用为
+\num{16941787.00} 元。紧急购电费占总费用的 \SI{9.65}{\percent}，说明 80\% 分位
+修正显著压低了高价缺电风险，但仍保留一定紧急购电以避免过度计划。
+
+\begin{table}[H]
+  \centering
+  \caption{问题二不同因果预测方案的全年费用比较}
+  \label{tab:q2-comparison}
+  \begin{tabular}{lrrr}
+    \toprule
+    预测方案 & 计划购电费/万元 & 紧急购电费/万元 & 总费用/万元 \\
+    \midrule
+    昨日同期 & 1220.74 & 1061.04 & 2281.78 \\
+    最近七日均值 & 1530.67 & 163.50 & 1694.18 \\
+    同星期类型均值 & 1652.69 & 367.03 & 2019.72 \\
+    相似日指数衰减 & 1504.59 & 342.72 & 1847.32 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\tabref{tab:q2-comparison} 表明，点预测误差并非唯一决定因素：昨日同期计划费用最低，
+但因低估风险产生高额紧急购电；相似日指数衰减较昨日同期显著改善，却仍不及最近七日
+基准稳定。因此，本文不因方法复杂而强行选用相似日模型，而将全年总费用最低的最近七
+日方案作为正式结果。四个季节代表日的实际净负荷、点预测及风险修正曲线见
+\figref{fig:q2-specified}。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.96\textwidth]{figures/q2_specified_days.pdf}
+  \caption{问题二四个代表日的净负荷预测与风险修正曲线}
+  \label{fig:q2-specified}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \caption{问题二四个代表日的购电费用}
+  \label{tab:q2-specified}
+  \begin{tabular}{lrrr}
+    \toprule
+    日期 & 计划购电费/元 & 紧急购电费/元 & 总费用/元 \\
+    \midrule
+    3 月 20 日 & 41595.17 & 3326.95 & 44922.11 \\
+    6 月 21 日 & 48872.60 & 0.00 & 48872.60 \\
+    9 月 23 日 & 41182.86 & 10778.75 & 51961.61 \\
+    12 月 21 日 & 60876.04 & 4122.38 & 64998.42 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\figref{fig:q2-monthly-cost} 给出各月费用构成。6 月和 7 月紧急购电费占比相对较高，
+与夏季源荷波动增强相一致；6 月 21 日单日未发生紧急购电，而 9 月 23 日的紧急购电费
+较高，说明代表日之间的风险差异不能仅由季节标签推断，仍需结合当日实际偏差解释。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\textwidth]{figures/q2_monthly_cost.pdf}
+  \caption{问题二各月计划购电费与紧急购电费}
+  \label{fig:q2-monthly-cost}
+\end{figure}
 
 \section{问题三的滚动调整模型}
 
@@ -385,6 +524,17 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
   \bibitem{scipy2020} P. Virtanen, R. Gommers, T. E. Oliphant, et al. SciPy 1.0:
   Fundamental algorithms for scientific computing in Python[J]. Nature Methods,
   2020, 17: 261--272.
+
+  \bibitem{hyndman2021} R. J. Hyndman and G. Athanasopoulos. Forecasting:
+  Principles and Practice[M/OL]. 3rd ed. Melbourne: OTexts, 2021.
+
+  \bibitem{mandal2006} P. Mandal, T. Senjyu, N. Urasaki, et al. A neural network
+  based several-hour-ahead electric load forecasting using similar days approach[J].
+  International Journal of Electrical Power \& Energy Systems, 2006, 28(6): 367--373.
+
+  \bibitem{acharya2020} S. K. Acharya, Y.-M. Wi, and J. Lee. Day-ahead forecasting
+  for small-scale photovoltaic power based on similar day detection with selective
+  weather variables[J]. Electronics, 2020, 9(7): 1117.
 \end{thebibliography}
 
 \newpage

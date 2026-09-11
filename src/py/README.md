@@ -1,4 +1,4 @@
-# 第一问代码
+# 第一、二问代码
 
 `question1.py` 使用 10 分钟分辨率的确定性线性规划求解第一问，将结果写入官方
 `result1.xlsx`，并使用 Matplotlib 生成论文图表。
@@ -36,3 +36,28 @@ src/附件5/result1.xlsx
 也可以通过 `--input`、`--template` 和 `--output` 指定其他路径。程序求解后会输出
 论文表 1 所需的六个时段、全天购电量、购电费以及约束检查相关汇总信息。图表默认
 保存到 `src/figure/`；如果只需要更新结果文件，可添加 `--no-plots`。
+
+## 问题二
+
+`question2.py` 从 2025 年 1 月 1 日起逐日顺序运行，1 月作为冷启动期，正式结果覆盖
+2 月 1 日至 12 月 31 日。任一天 0:00 的预测只读取此前已经发生的数据，日初储电量
+继承上一日实际结束值；全天计划购电一旦确定便不再修改，供电缺口按同时段正常电价的
+5 倍计入紧急购电。
+
+正式基线采用最近七日的负荷、光伏点预测，并依据紧急购电倍率对应的报童模型临界分位
+数，以历史净负荷的 80% 经验分位曲线制定风险修正后的购电计划。程序还实现了昨日同
+期、星期类型以及“日历分组与形状筛选后指数衰减”的相似日预测，用于同口径消融比较。
+
+在项目根目录运行：
+
+```powershell
+python src/py/question2.py
+python src/py/question2.py --write-results --compare --plots
+```
+
+第一条命令仅求解并打印指标；第二条命令会填充官方 `src/附件5/result2.xlsx`，生成
+`src/data/question2_summary.xlsx`，并把论文图保存到 `src/tex/figure/`。完整测试命令为：
+
+```powershell
+python -m unittest discover -s src/py -p "test_*.py" -v
+```
