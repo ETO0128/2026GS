@@ -139,13 +139,15 @@ class PvForecast3:
 
 
 # --------------------------------------------------------------------------- 预测
-def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0):
+def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0,
+                  fc_kwargs: dict | None = None):
     """当天 144 段的负荷预测（因果）与 τ 时刻的光伏预报（kWh）。
 
     load_lam 为负荷预测的指数衰减系数（默认 1.0 = 纯均值）；问题二已表明
     load_lam=0.9 的“同月+同类型+指数加权”预测误差明显更小，问题三据此允许调参。
+    fc_kwargs 可覆盖负荷预测口径（如七日均值 dict(use_month=False, use_type=False, k_max=7)）。
     """
-    l_fc = q2.forecast_day(att, i, lam=load_lam)[0]
+    l_fc = q2.forecast_day(att, i, lam=load_lam, **(fc_kwargs or {}))[0]
     v_fc = np.zeros(q2.N)
     j0 = tau // 10
     if j0 < q2.N:
@@ -154,21 +156,22 @@ def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0)
 
 
 def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
-                       load_lam: float = 1.0, scen_scale: float = 1.0):
+                       load_lam: float = 1.0, scen_scale: float = 1.0,
+                       fc_kwargs: dict | None = None):
     """剩余时段 [τ,24:00) 的净负荷场景（同一预报时刻的历史预报误差）。
 
     历史预报误差必须用与当天一致的预测口径（load_lam）重算，否则场景与决策不同源。
     scen_scale 用于按比例放大/缩小预报误差，做“预报质量”敏感性分析。
     """
     j0 = tau // 10
-    l_fc, v_fc = forecast_full(att, f3, i, tau, load_lam)
+    l_fc, v_fc = forecast_full(att, f3, i, tau, load_lam, fc_kwargs)
     l_fc, v_fc = l_fc[j0:], v_fc[j0:]
     have = set(f3.days)
     idx = [j for j in q2.history_index(att, i) if att.dates[j] in have]
     dl, dv = [], []
     for j in idx:
         try:
-            pl = q2.forecast_day(att, j, lam=load_lam)[0][j0:]
+            pl = q2.forecast_day(att, j, lam=load_lam, **(fc_kwargs or {}))[0][j0:]
             pv = f3.pv_kwh(att.dates[j], tau, j0, q2.N)
         except (KeyError, ValueError):
             continue
@@ -303,7 +306,8 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                  price_plan=None, load_lam: float = 1.0,
                  load_bias: bool = False, bias_clip: float = 0.4,
                  lookahead_alpha: float = 5.0, exec_mode: str = "A",
-                 params: "Params" = DEFAULT_PARAMS, scen_scale: float = 1.0) -> dict:
+                 params: "Params" = DEFAULT_PARAMS, scen_scale: float = 1.0,
+                 fc_kwargs: dict | None = None) -> dict:
     """执行一天：0:00 计划 + 6:00/12:00/18:00 调整 + 实际结算。
 
     policy: "none" 不调整；"fixed" 固定调整；"selective" 仅当预期收益为正才调整
@@ -320,6 +324,7 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
         实际负荷/光伏日内再调度（与问题二 P2B 同口径），“充放电量”取再调度后的最终值。
     params: 系统参数（储能容量/功率/效率/初始储电量/紧急购电倍率），默认等于原模型。
     scen_scale: 预报误差水平缩放（1.0 = 实际历史误差），用于“预报质量”敏感性分析。
+    fc_kwargs: 负荷预测口径覆盖项（默认 None = 同月 $+$ 同类型均值）。
     """
     P = params
     price_plan = price if price_plan is None else price_plan
@@ -327,8 +332,8 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
     net_act = l_act - v_act
     nodes = [1, 2, 3] if node_subset is None else list(node_subset)
 
-    l_fc, v_fc = forecast_full(att, f3, i, 0, load_lam)
-    scen, w = residual_scenarios(att, f3, i, 0, s_max, load_lam, scen_scale)
+    l_fc, v_fc = forecast_full(att, f3, i, 0, load_lam, fc_kwargs)
+    scen, w = residual_scenarios(att, f3, i, 0, s_max, load_lam, scen_scale, fc_kwargs)
     plan_pen = np.full(q2.N, P.emg)
     if lookahead_alpha != P.emg:                  # 可调整时段（6:00 之后）按更低倍率对冲
         plan_pen[NODE_MIN[1] // 10:] = lookahead_alpha
@@ -345,14 +350,14 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                         "adjusted": False, "fee": 0.0, "dq_kwh": 0.0})
             continue
         j0 = NODE_MIN[k] // 10
-        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k], load_lam)
+        l_fc, v_fc = forecast_full(att, f3, i, NODE_MIN[k], load_lam, fc_kwargs)
         if load_bias and j0 > 0:                      # 用已实现的上午负荷校正全天水平
             obs, fc = att.load_kwh[i][:j0].sum(), l_fc[:j0].sum()
             if fc > 1e-9:
                 ratio = float(np.clip(obs / fc, 1.0 - bias_clip, 1.0 + bias_clip))
                 l_fc = l_fc.copy()
                 l_fc[j0:] *= ratio
-        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam, scen_scale)
+        scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam, scen_scale, fc_kwargs)
         qp_seg = q_plan[j0:]
         keep = eval_seg(price_plan[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w, P)
         J_keep = keep["fee"] + keep["exp_emg_cost"]
