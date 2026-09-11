@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
-from question2 import Question2Config, run_question2
+from question2 import Question2Config, YearResult, run_question2, validate_official_configuration
 from question2_data import ColdStartForecast, YearData
 from question2_forecast import ForecastConfig
 
@@ -20,6 +20,11 @@ def make_data(days: int = 3) -> YearData:
 
 
 class Question2IntegrationTests(unittest.TestCase):
+    def test_production_defaults_are_locked(self) -> None:
+        config = Question2Config()
+        self.assertEqual(config.forecast.residual_candidate_count, 42)
+        self.assertAlmostEqual(config.forecast.residual_decay, 0.95)
+
     def test_realized_soc_is_carried_across_days(self) -> None:
         result = run_question2(
             make_data(),
@@ -53,6 +58,15 @@ class Question2IntegrationTests(unittest.TestCase):
         self.assertGreater(result.days[1].expected_emergency_cost_yuan, -1e-8)
         for previous, current in zip(result.days, result.days[1:]):
             self.assertAlmostEqual(previous.execution.soc_kwh[-1], current.execution.soc_kwh[0], places=5)
+
+    def test_official_workbook_rejects_non_final_configuration(self) -> None:
+        result = run_question2(
+            make_data(),
+            Question2Config(forecast=ForecastConfig(residual_candidate_count=28)),
+            ColdStartForecast(np.full(144, 600.0), np.zeros(144)),
+        )
+        with self.assertRaises(ValueError):
+            validate_official_configuration(result)
 
 
 if __name__ == "__main__":

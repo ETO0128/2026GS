@@ -38,7 +38,8 @@ from question2_scenarios import build_joint_residual_scenarios
 
 INITIAL_SOC_KWH = 6000.0
 OFFICIAL_START = date(2025, 2, 1)
-VALIDATION_END = date(2025, 2, 28)
+CALIBRATION_START = date(2025, 1, 15)
+CALIBRATION_END = date(2025, 1, 31)
 TEST_START = date(2025, 3, 1)
 SPECIFIED_DATES = (date(2025, 3, 20), date(2025, 6, 21), date(2025, 9, 23), date(2025, 12, 21))
 
@@ -116,9 +117,13 @@ def calibrate_conditional_parameters(
     candidate_counts: tuple[int, ...] = (14, 28, 42),
     candidate_decays: tuple[float, ...] = (0.90, 0.95, 0.98),
 ) -> tuple[Question2Config, dict[str, float]]:
-    """Select residual-quantile parameters on February, after a January warm-up."""
+    """Select residual-quantile parameters using a causal January-only validation.
 
-    validation_days = sum(item <= VALIDATION_END for item in data.dates)
+    The official evaluation begins on February 1, so neither February outcomes
+    nor any later realization may influence the locked production parameters.
+    """
+
+    validation_days = sum(item <= CALIBRATION_END for item in data.dates)
     validation_data = YearData(
         dates=data.dates[:validation_days],
         minute_of_day=data.minute_of_day.copy(),
@@ -138,7 +143,7 @@ def calibrate_conditional_parameters(
             )
             config = replace(base_config, forecast=forecast_config)
             result = run_question2(validation_data, config, cold_start)
-            score = evaluate_period(result.days, OFFICIAL_START, VALIDATION_END)["total_cost_yuan"]
+            score = evaluate_period(result.days, CALIBRATION_START, CALIBRATION_END)["total_cost_yuan"]
             scores[f"count={count},decay={decay:.2f}"] = score
             candidates.append((score, count, abs(decay - 1.0), config))
     return min(candidates, key=lambda item: item[:3])[3], scores
@@ -454,6 +459,10 @@ def write_summary_workbook(output: Path, result: YearResult, comparisons: dict[s
     summary.append(["指标", "数值"])
     for key, value in result.metrics.items():
         summary.append([key, value])
+    metadata = workbook.create_sheet("运行配置")
+    metadata.append(["参数", "数值"])
+    for key, value in result.run_metadata.items():
+        metadata.append([key, value])
     comparison = workbook.create_sheet("方案对比")
     comparison.append(["方案", "净负荷RMSE/kW", "计划费用/元", "紧急购电费/元", "总费用/元", "弃电量/kWh"])
     for name, case in (comparisons or {"official": result}).items():
@@ -495,6 +504,28 @@ def write_summary_workbook(output: Path, result: YearResult, comparisons: dict[s
             sheet.column_dimensions[get_column_letter(column)].width = min(max(max(map(len, values)) + 2, 12), 28)
     output.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output)
+
+
+def validate_official_configuration(result: YearResult) -> None:
+    """Prevent an accidental overwrite of the official workbook by a non-final run."""
+
+    expected = {
+        "forecast_method": "seven_day",
+        "planner": "deterministic",
+        "planning_quantile": 0.80,
+        "planning_method": "conditional_residual",
+        "residual_candidate_count": 42,
+        "residual_decay": 0.95,
+        "execution_strategy": "fixed_plan",
+    }
+    mismatches = {
+        key: (result.run_metadata.get(key), value)
+        for key, value in expected.items()
+        if result.run_metadata.get(key) != value
+    }
+    if mismatches:
+        detail = ", ".join(f"{key}={actual!r} (expected {wanted!r})" for key, (actual, wanted) in mismatches.items())
+        raise ValueError(f"Refusing to overwrite the official result2.xlsx with a non-final configuration: {detail}")
 
 
 def plot_question2(output_directory: Path, result: YearResult) -> tuple[Path, Path]:
@@ -582,7 +613,7 @@ def main() -> None:
         default="conditional_residual",
     )
     parser.add_argument("--residual-window", type=int, default=90)
-    parser.add_argument("--residual-count", type=int, default=28)
+    parser.add_argument("--residual-count", type=int, default=42)
     parser.add_argument("--residual-decay", type=float, default=0.95)
     parser.add_argument("--reserve", type=float, default=6000.0)
     parser.add_argument("--planner", choices=("deterministic", "stochastic"), default="deterministic")
@@ -628,7 +659,7 @@ def main() -> None:
             parser.error("--calibrate-conditional requires --planning-method conditional_residual")
         config, calibration_scores = calibrate_conditional_parameters(data, cold_start, config)
         for name, score in calibration_scores.items():
-            print(f"february_validation[{name}]={score:.6f}")
+            print(f"january_validation[{name}]={score:.6f}")
         print(f"selected_residual_count={config.forecast.residual_candidate_count}")
         print(f"selected_residual_decay={config.forecast.residual_decay:.2f}")
     result = run_question2(data, config, cold_start)
@@ -637,6 +668,9 @@ def main() -> None:
         print(f"{key}={value:.6f}")
     print(f"elapsed_seconds={result.run_metadata['elapsed_seconds']:.3f}")
     if args.write_results:
+        official_output = root / "src/附件5/result2.xlsx"
+        if args.output.resolve() == official_output.resolve():
+            validate_official_configuration(result)
         write_result2_workbook(args.template, args.output, result)
         comparisons: dict[str, YearResult] | None = None
         if args.compare:

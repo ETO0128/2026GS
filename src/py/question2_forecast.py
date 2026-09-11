@@ -25,7 +25,7 @@ class ForecastConfig:
     planning_quantile: float = 0.80
     planning_method: PlanningMethod = "conditional_residual"
     residual_window_days: int = 90
-    residual_candidate_count: int = 28
+    residual_candidate_count: int = 42
     residual_decay: float = 0.95
 
 
