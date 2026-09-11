@@ -17,7 +17,14 @@ from typing import Iterable
 
 import numpy as np
 from openpyxl import load_workbook
-from scipy.optimize import linprog
+
+from microgrid_core import (
+    DispatchInput,
+    DispatchSolution,
+    StorageParameters,
+    solve_dispatch,
+    validate_dispatch,
+)
 
 
 SLOTS_PER_DAY = 144
@@ -192,79 +199,26 @@ def solve_question1(data: Question1Data) -> ScheduleSolution:
     charging and discharging without changing the economic objective.
     """
 
-    n = SLOTS_PER_DAY
-    if len(data.minute_of_day) != n:
-        raise ValueError(f"Expected {n} time slots")
-
-    grid = slice(0, n)
-    charge = slice(n, 2 * n)
-    discharge = slice(2 * n, 3 * n)
-    curtailment = slice(3 * n, 4 * n)
-    soc_start = 4 * n
-    variable_count = 5 * n + 1
-
-    objective = np.zeros(variable_count)
-    objective[grid] = data.price_yuan_per_kwh
-
-    equality = np.zeros((2 * n, variable_count))
-    rhs = np.zeros(2 * n)
-
-    # AC-bus energy balance: grid + PV + discharge = load + charge + curtailment.
-    for t in range(n):
-        equality[t, t] = 1.0
-        equality[t, n + t] = -1.0
-        equality[t, 2 * n + t] = 1.0
-        equality[t, 3 * n + t] = -1.0
-        rhs[t] = data.load_kwh[t] - data.pv_kwh[t]
-
-        equality[n + t, soc_start + t] = -1.0
-        equality[n + t, soc_start + t + 1] = 1.0
-        equality[n + t, n + t] = -CHARGE_EFFICIENCY
-        equality[n + t, 2 * n + t] = 1.0 / DISCHARGE_EFFICIENCY
-
-    bounds: list[tuple[float, float | None]] = []
-    bounds.extend((0.0, None) for _ in range(n))
-    bounds.extend((0.0, MAX_SLOT_ENERGY_KWH) for _ in range(n))
-    bounds.extend((0.0, MAX_SLOT_ENERGY_KWH) for _ in range(n))
-    bounds.extend((0.0, float(data.pv_kwh[t])) for t in range(n))
-    bounds.append((INITIAL_SOC_KWH, INITIAL_SOC_KWH))
-    bounds.extend((MIN_SOC_KWH, MAX_SOC_KWH) for _ in range(n - 1))
-    bounds.append((INITIAL_SOC_KWH, INITIAL_SOC_KWH))
-
-    economic_result = linprog(
-        objective,
-        A_eq=equality,
-        b_eq=rhs,
-        bounds=bounds,
-        method="highs",
+    if len(data.minute_of_day) != SLOTS_PER_DAY:
+        raise ValueError(f"Expected {SLOTS_PER_DAY} time slots")
+    shared_solution = solve_dispatch(
+        DispatchInput(
+            price_yuan_per_kwh=data.price_yuan_per_kwh,
+            load_kwh=data.load_kwh,
+            pv_kwh=data.pv_kwh,
+        ),
+        StorageParameters(),
+        initial_soc_kwh=INITIAL_SOC_KWH,
+        terminal_soc_min_kwh=INITIAL_SOC_KWH,
+        terminal_soc_max_kwh=INITIAL_SOC_KWH,
     )
-    if not economic_result.success:
-        raise RuntimeError(f"Economic LP failed: {economic_result.message}")
-
-    optimum_cost = float(economic_result.fun)
-    throughput_objective = np.zeros(variable_count)
-    throughput_objective[charge] = 1.0
-    throughput_objective[discharge] = 1.0
-    tie_break_result = linprog(
-        throughput_objective,
-        A_eq=np.vstack((equality, objective)),
-        b_eq=np.append(rhs, optimum_cost),
-        bounds=bounds,
-        method="highs",
-    )
-    if not tie_break_result.success:
-        raise RuntimeError(f"Tie-break LP failed: {tie_break_result.message}")
-
-    values = tie_break_result.x.copy()
-    # HiGHS can return signed values around 1e-11 for variables bounded at zero.
-    values[np.abs(values) < 1e-8] = 0.0
     solution = ScheduleSolution(
-        grid_kwh=values[grid].copy(),
-        charge_kwh=values[charge].copy(),
-        discharge_kwh=values[discharge].copy(),
-        curtailment_kwh=values[curtailment].copy(),
-        soc_kwh=values[soc_start : soc_start + n + 1].copy(),
-        total_cost_yuan=float(np.dot(data.price_yuan_per_kwh, values[grid])),
+        grid_kwh=shared_solution.grid_kwh,
+        charge_kwh=shared_solution.charge_kwh,
+        discharge_kwh=shared_solution.discharge_kwh,
+        curtailment_kwh=shared_solution.curtailment_kwh,
+        soc_kwh=shared_solution.soc_kwh,
+        total_cost_yuan=shared_solution.total_cost_yuan,
     )
     validate_solution(data, solution)
     return solution
@@ -277,40 +231,26 @@ def validate_solution(
 ) -> None:
     """Raise an error if an optimization result violates a physical constraint."""
 
-    balance = (
-        solution.grid_kwh
-        + data.pv_kwh
-        + solution.discharge_kwh
-        - data.load_kwh
-        - solution.charge_kwh
-        - solution.curtailment_kwh
+    validate_dispatch(
+        DispatchInput(
+            price_yuan_per_kwh=data.price_yuan_per_kwh,
+            load_kwh=data.load_kwh,
+            pv_kwh=data.pv_kwh,
+        ),
+        StorageParameters(),
+        DispatchSolution(
+            grid_kwh=solution.grid_kwh,
+            charge_kwh=solution.charge_kwh,
+            discharge_kwh=solution.discharge_kwh,
+            curtailment_kwh=solution.curtailment_kwh,
+            soc_kwh=solution.soc_kwh,
+            total_cost_yuan=solution.total_cost_yuan,
+        ),
+        initial_soc_kwh=INITIAL_SOC_KWH,
+        terminal_soc_min_kwh=INITIAL_SOC_KWH,
+        terminal_soc_max_kwh=INITIAL_SOC_KWH,
+        tolerance=tolerance,
     )
-    expected_next_soc = (
-        solution.soc_kwh[:-1]
-        + CHARGE_EFFICIENCY * solution.charge_kwh
-        - solution.discharge_kwh / DISCHARGE_EFFICIENCY
-    )
-
-    checks = {
-        "energy balance": float(np.max(np.abs(balance))),
-        "SOC transition": float(np.max(np.abs(solution.soc_kwh[1:] - expected_next_soc))),
-        "initial SOC": abs(float(solution.soc_kwh[0]) - INITIAL_SOC_KWH),
-        "terminal SOC": abs(float(solution.soc_kwh[-1]) - INITIAL_SOC_KWH),
-    }
-    failed = {name: value for name, value in checks.items() if value > tolerance}
-    if failed:
-        raise RuntimeError(f"Solution validation failed: {failed}")
-
-    if np.min(solution.grid_kwh) < -tolerance:
-        raise RuntimeError("Grid purchase became negative")
-    if np.min(solution.charge_kwh) < -tolerance or np.max(solution.charge_kwh) > MAX_SLOT_ENERGY_KWH + tolerance:
-        raise RuntimeError("Charge energy violates its slot bound")
-    if np.min(solution.discharge_kwh) < -tolerance or np.max(solution.discharge_kwh) > MAX_SLOT_ENERGY_KWH + tolerance:
-        raise RuntimeError("Discharge energy violates its slot bound")
-    if np.min(solution.soc_kwh) < MIN_SOC_KWH - tolerance or np.max(solution.soc_kwh) > MAX_SOC_KWH + tolerance:
-        raise RuntimeError("SOC violates its allowed range")
-    if np.any(np.minimum(solution.charge_kwh, solution.discharge_kwh) > tolerance):
-        raise RuntimeError("The result contains simultaneous charging and discharging")
 
 
 def _value_by_start_minute(values: np.ndarray) -> dict[int, float]:
