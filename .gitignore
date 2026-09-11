@@ -38,3 +38,5 @@ src/outputs/*.xlsx
 src/outputs/*.npz
 src/outputs/*_run_log.txt
 src/outputs/*_run_err.txt
+src/outputs/*_log.txt
+src/outputs/*_err.txt

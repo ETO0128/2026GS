@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +45,8 @@ def main() -> None:
     emit("")
 
     summary = {}
+    json_out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
+                      "policies": {}, "node_sets": {}}
     store: dict[str, dict[str, np.ndarray]] = {}
     for pol in [p for p in args.policies.split(",") if p]:
         tot = dict(plan=0.0, fee=0.0, emg=0.0, emg_kwh=0.0, adj_days=0, adj_nodes=0,
@@ -53,6 +56,7 @@ def main() -> None:
         q_adj = np.zeros((len(win), 144))
         c_adj = np.zeros((len(win), 144))
         d_adj = np.zeros((len(win), 144))
+        per_day = []
         for k, i in enumerate(win):
             if k % 40 == 0:
                 print(f"  [{pol}] {k}/{len(win)} ...", flush=True)
@@ -64,6 +68,10 @@ def main() -> None:
             q_plan[k], q_adj[k] = r["q_plan"], r["q_adj"]
             c_adj[k], d_adj[k] = r["c_adj"], r["d_adj"]
             took = False
+            per_day.append({"date": str(r["date"]), "plan_cost": r["plan_cost"], "fee": r["fee"],
+                            "emg_kwh": r["emg_kwh"], "emg_cost": r["emg_cost"],
+                            "total": r["total"],
+                            "adjusted": [e["node"] for e in r["log"] if e["adjusted"]]})
             for e in r["log"]:
                 if e["J_keep"] is None:
                     continue
@@ -80,6 +88,17 @@ def main() -> None:
         tot["dq"] = float(np.abs(q_adj - q_plan)[-len(win):].sum())
         summary[pol] = tot
         store[pol] = dict(q_plan=q_plan, q_adj=q_adj, c_adj=c_adj, d_adj=d_adj)
+        json_out["policies"][pol] = {
+            "total": tot["total"], "plan_cost": tot["plan"], "fee": tot["fee"],
+            "emg_cost": tot["emg"], "emg_kwh": tot["emg_kwh"],
+            "adj_days": tot["adj_days"], "adj_nodes": tot["adj_nodes"], "dq_kwh": tot["dq"],
+            "nodes": {n: {"take": tot["nodes"][n]["take"],
+                          "J_keep": tot["nodes"][n]["keep"],
+                          "J_adj": tot["nodes"][n]["adj"],
+                          "gain": tot["nodes"][n]["keep"] - tot["nodes"][n]["adj"]}
+                      for n in q3.NODE_NAME[1:]},
+            "per_day": per_day,
+        }
 
         emit(f"策略 {pol}")
         emit(f"  计划购电费 {tot['plan']:>15,.2f} 元")
@@ -108,12 +127,16 @@ def main() -> None:
                 emg += r["emg_kwh"]
             if base is None:
                 base = tot
+            json_out["node_sets"][key] = {"total": tot, "emg_kwh": emg,
+                                          "gain": base - tot, "gain_pct": (base - tot) / base * 100}
             emit(f"  可用节点 {key:<8} 合计 {tot:>15,.2f} 元 | 紧急 {emg:>12,.2f} kWh | "
                  f"相对 0:00 降低 {base-tot:>12,.2f} 元（{(base-tot)/base*100:5.2f}%）")
         emit("")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines), encoding="utf-8")
+    json_path = out.with_name("q3_summary.json")
+    json_path.write_text(json.dumps(json_out, ensure_ascii=False, indent=1), encoding="utf-8")
     np.savez_compressed(root / "src" / "outputs" / "q3_arrays.npz",
                         **{f"{p}_{k}": v for p, d in store.items() for k, v in d.items()})
     print("done")
