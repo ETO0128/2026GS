@@ -30,3 +30,14 @@ venv/
 
 # Locally compiled competition paper
 src/tex/main.pdf
+
+# 问题二实验的中间产物与运行日志（可重新生成，不入库）
+src/outputs/*.npy
+src/outputs/*_run_log.txt
+src/outputs/*_run_err.txt
+src/outputs/*.xlsx
+src/outputs/*.npz
+src/outputs/*_run_log.txt
+src/outputs/*_run_err.txt
+src/outputs/*_log.txt
+src/outputs/*_err.txt

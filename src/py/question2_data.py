@@ -34,6 +34,14 @@ class YearData:
 
 
 @dataclass(frozen=True)
+class ActualYearData:
+    dates: tuple[date, ...]
+    minute_of_day: np.ndarray
+    load_kw: np.ndarray
+    pv_kw: np.ndarray
+
+
+@dataclass(frozen=True)
 class ColdStartForecast:
     load_kw: np.ndarray
     pv_kw: np.ndarray
@@ -54,24 +62,27 @@ def _validate_matrix(values: np.ndarray, name: str) -> None:
         raise ValueError(f"{name} contains a missing, non-finite or negative value")
 
 
-def _read_sheet(path: Path, sheet_name: str) -> tuple[tuple[date, ...], tuple[str, ...], np.ndarray]:
+def read_daily_matrix(path: Path, sheet_name: str) -> tuple[tuple[date, ...], tuple[str, ...], np.ndarray]:
     workbook = load_workbook(path, data_only=True, read_only=True)
-    sheet = workbook[sheet_name]
-    rows_iterator = sheet.iter_rows(values_only=True)
-    header_row = next(rows_iterator)
-    headers = tuple(str(value).strip() for value in header_row[1:])
-    if len(headers) != SLOTS_PER_DAY or len(set(headers)) != SLOTS_PER_DAY:
-        raise ValueError(f"{sheet_name} must contain 144 unique time columns")
-    dates: list[date] = []
-    rows: list[list[float]] = []
-    for row in rows_iterator:
-        raw_date = row[0]
-        if raw_date is None:
-            continue
-        dates.append(_as_date(raw_date))
-        if len(row[1:]) != SLOTS_PER_DAY or any(value is None for value in row[1:]):
-            raise ValueError(f"{sheet_name} has an incomplete row for {raw_date}")
-        rows.append([float(value) for value in row[1:]])
+    try:
+        sheet = workbook[sheet_name]
+        rows_iterator = sheet.iter_rows(values_only=True)
+        header_row = next(rows_iterator)
+        headers = tuple(str(value).strip() for value in header_row[1:])
+        if len(headers) != SLOTS_PER_DAY or len(set(headers)) != SLOTS_PER_DAY:
+            raise ValueError(f"{sheet_name} must contain 144 unique time columns")
+        dates: list[date] = []
+        rows: list[list[float]] = []
+        for row in rows_iterator:
+            raw_date = row[0]
+            if raw_date is None:
+                continue
+            dates.append(_as_date(raw_date))
+            if len(row[1:]) != SLOTS_PER_DAY or any(value is None for value in row[1:]):
+                raise ValueError(f"{sheet_name} has an incomplete row for {raw_date}")
+            rows.append([float(value) for value in row[1:]])
+    finally:
+        workbook.close()
     values = np.asarray(rows, dtype=float)
     _validate_matrix(values, sheet_name)
     return tuple(dates), headers, values
@@ -81,8 +92,21 @@ def load_year_data(attachment1: Path, attachment2: Path) -> YearData:
     """Read 2025 actual curves and rotate the final source column to midnight."""
 
     q1 = load_question1_data(attachment1)
-    load_dates, load_headers, source_load = _read_sheet(attachment2, "小区负载")
-    pv_dates, pv_headers, source_pv = _read_sheet(attachment2, "光伏发电实际功率")
+    actual = load_actual_year_data(attachment2)
+    return YearData(
+        dates=actual.dates,
+        minute_of_day=actual.minute_of_day,
+        price_yuan_per_kwh=np.asarray(q1.price_yuan_per_kwh, dtype=float),
+        load_kw=actual.load_kw,
+        pv_kw=actual.pv_kw,
+    )
+
+
+def load_actual_year_data(attachment2: Path) -> ActualYearData:
+    """Read and validate the complete 2025 actual load and PV curves."""
+
+    load_dates, load_headers, source_load = read_daily_matrix(attachment2, "小区负载")
+    pv_dates, pv_headers, source_pv = read_daily_matrix(attachment2, "光伏发电实际功率")
     if load_dates != pv_dates or load_headers != pv_headers:
         raise ValueError("Load and PV sheets do not use identical dates and time columns")
     expected = tuple(date(2025, 1, 1) + timedelta(days=index) for index in range(365))
@@ -93,10 +117,9 @@ def load_year_data(attachment1: Path, attachment2: Path) -> YearData:
     pv_kw = np.concatenate((source_pv[:, -1:], source_pv[:, :-1]), axis=1)
     _validate_matrix(load_kw, "load_kw")
     _validate_matrix(pv_kw, "pv_kw")
-    return YearData(
+    return ActualYearData(
         dates=load_dates,
         minute_of_day=np.arange(0, 1440, SLOT_MINUTES, dtype=int),
-        price_yuan_per_kwh=np.asarray(q1.price_yuan_per_kwh, dtype=float),
         load_kw=load_kw,
         pv_kw=pv_kw,
     )
