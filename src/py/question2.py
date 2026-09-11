@@ -7,7 +7,7 @@ import os
 import tempfile
 import time
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
@@ -17,8 +17,17 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from question2_data import ColdStartForecast, YearData, internal_to_template, load_cold_start_forecast, load_year_data
-from question2_dispatch import DayAheadPlan, DayExecution, RealizedDay, compress_emergency_events, plan_day_ahead, simulate_fixed_plan
+from question2_dispatch import (
+    DayAheadPlan,
+    DayExecution,
+    RealizedDay,
+    compress_emergency_events,
+    plan_day_ahead,
+    plan_two_stage_stochastic,
+    simulate_fixed_plan,
+)
 from question2_forecast import ForecastConfig, ForecastResult, forecast_day, forecast_metrics
+from question2_scenarios import build_joint_residual_scenarios
 
 
 INITIAL_SOC_KWH = 6000.0
@@ -29,8 +38,12 @@ SPECIFIED_DATES = (date(2025, 3, 20), date(2025, 6, 21), date(2025, 9, 23), date
 @dataclass(frozen=True)
 class Question2Config:
     forecast: ForecastConfig = ForecastConfig()
+    planner: str = "deterministic"
     reserve_kwh: float = 6000.0
     emergency_multiplier: float = 5.0
+    scenario_count: int = 14
+    scenario_decay: float = 0.95
+    scenario_window_days: int = 90
 
 
 @dataclass(frozen=True)
@@ -41,6 +54,7 @@ class DailyRecord:
     execution: DayExecution
     actual_load_kw: np.ndarray
     actual_pv_kw: np.ndarray
+    expected_emergency_cost_yuan: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -54,10 +68,50 @@ class YearResult:
         return tuple(day for day in self.days if day.date >= OFFICIAL_START)
 
 
+def calibrate_stochastic_parameters(
+    data: YearData,
+    cold_start: ColdStartForecast,
+    base_config: Question2Config,
+    candidate_counts: tuple[int, ...] = (7, 14, 28),
+    candidate_decays: tuple[float, ...] = (0.90, 0.95, 0.98),
+) -> tuple[Question2Config, dict[str, float]]:
+    """Select scenario count and decay using January only."""
+
+    january_days = sum(item.month == 1 for item in data.dates)
+    january = YearData(
+        dates=data.dates[:january_days],
+        minute_of_day=data.minute_of_day.copy(),
+        price_yuan_per_kwh=data.price_yuan_per_kwh.copy(),
+        load_kw=data.load_kw[:january_days].copy(),
+        pv_kw=data.pv_kw[:january_days].copy(),
+    )
+    scores: dict[str, float] = {}
+    candidates: list[tuple[float, int, float, Question2Config]] = []
+    for count in candidate_counts:
+        for decay in candidate_decays:
+            config = replace(
+                base_config,
+                planner="stochastic",
+                scenario_count=count,
+                scenario_decay=decay,
+            )
+            score = run_question2(january, config, cold_start).metrics["total_cost_yuan"]
+            scores[f"count={count},decay={decay:.2f}"] = score
+            candidates.append((score, count, abs(decay - 1.0), config))
+    return min(candidates, key=lambda item: item[:3])[3], scores
+
+
 def run_question2(data: YearData, config: Question2Config, cold_start: ColdStartForecast) -> YearResult:
+    if config.planner not in {"deterministic", "stochastic"}:
+        raise ValueError("planner must be deterministic or stochastic")
     started = time.perf_counter()
     carried_soc = INITIAL_SOC_KWH
     records: list[DailyRecord] = []
+    history_dates: list[date] = []
+    history_actual_load: list[np.ndarray] = []
+    history_actual_pv: list[np.ndarray] = []
+    history_load_residual: list[np.ndarray] = []
+    history_pv_residual: list[np.ndarray] = []
     for index, run_date in enumerate(data.dates):
         forecast = forecast_day(
             data,
@@ -66,7 +120,32 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
             cold_start_load_kw=cold_start.load_kw,
             cold_start_pv_kw=cold_start.pv_kw,
         )
-        plan = plan_day_ahead(run_date, forecast, data.price_yuan_per_kwh, carried_soc, config.reserve_kwh)
+        expected_emergency_cost = 0.0
+        if config.planner == "stochastic" and history_dates:
+            scenarios = build_joint_residual_scenarios(
+                history_dates=tuple(history_dates),
+                actual_load_kw=np.stack(history_actual_load),
+                actual_pv_kw=np.stack(history_actual_pv),
+                load_residual_kw=np.stack(history_load_residual),
+                pv_residual_kw=np.stack(history_pv_residual),
+                target_forecast=forecast,
+                decision_date=run_date,
+                max_scenarios=config.scenario_count,
+                decay=config.scenario_decay,
+                window_days=config.scenario_window_days,
+            )
+            stochastic = plan_two_stage_stochastic(
+                run_date,
+                scenarios,
+                data.price_yuan_per_kwh,
+                carried_soc,
+                config.reserve_kwh,
+                config.emergency_multiplier,
+            )
+            plan = stochastic.plan
+            expected_emergency_cost = stochastic.expected_emergency_cost_yuan
+        else:
+            plan = plan_day_ahead(run_date, forecast, data.price_yuan_per_kwh, carried_soc, config.reserve_kwh)
         realized = RealizedDay(run_date, data.load_kwh[index].copy(), data.pv_kwh[index].copy())
         execution = simulate_fixed_plan(
             plan,
@@ -75,7 +154,20 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
             emergency_multiplier=config.emergency_multiplier,
             reserve_kwh=config.reserve_kwh,
         )
-        records.append(DailyRecord(run_date, forecast, plan, execution, data.load_kw[index].copy(), data.pv_kw[index].copy()))
+        records.append(DailyRecord(
+            run_date,
+            forecast,
+            plan,
+            execution,
+            data.load_kw[index].copy(),
+            data.pv_kw[index].copy(),
+            expected_emergency_cost,
+        ))
+        history_dates.append(run_date)
+        history_actual_load.append(data.load_kw[index].copy())
+        history_actual_pv.append(data.pv_kw[index].copy())
+        history_load_residual.append(data.load_kw[index] - forecast.load_kw)
+        history_pv_residual.append(data.pv_kw[index] - forecast.pv_kw)
         carried_soc = float(execution.soc_kwh[-1])
     metrics = evaluate_year(tuple(records))
     return YearResult(
@@ -83,7 +175,10 @@ def run_question2(data: YearData, config: Question2Config, cold_start: ColdStart
         metrics=metrics,
         run_metadata={
             "forecast_method": config.forecast.method,
+            "planner": config.planner,
             "planning_quantile": config.forecast.planning_quantile,
+            "scenario_count": config.scenario_count,
+            "scenario_decay": config.scenario_decay,
             "execution_strategy": "fixed_plan",
             "elapsed_seconds": time.perf_counter() - started,
             "simulated_days": len(records),
@@ -120,6 +215,7 @@ def evaluate_year(days: tuple[DailyRecord, ...]) -> dict[str, float]:
         "planned_cost_yuan": planned_cost,
         "emergency_purchase_kwh": emergency,
         "emergency_cost_yuan": emergency_cost,
+        "scenario_expected_emergency_cost_yuan": float(sum(day.expected_emergency_cost_yuan for day in official)),
         "total_cost_yuan": planned_cost + emergency_cost,
         "charge_kwh": float(sum(np.sum(day.execution.charge_kwh) for day in official)),
         "discharge_kwh": float(sum(np.sum(day.execution.discharge_kwh) for day in official)),
@@ -403,25 +499,39 @@ def main() -> None:
     parser.add_argument("--decay", type=float, default=0.95)
     parser.add_argument("--candidate-count", type=int, default=14)
     parser.add_argument("--quantile", type=float, default=0.80)
+    parser.add_argument("--planner", choices=("deterministic", "stochastic"), default="deterministic")
+    parser.add_argument("--scenario-count", type=int, default=14)
+    parser.add_argument("--scenario-decay", type=float, default=0.95)
+    parser.add_argument("--scenario-window", type=int, default=90)
+    parser.add_argument("--calibrate-scenarios", action="store_true")
     parser.add_argument("--write-results", action="store_true")
     parser.add_argument("--plots", action="store_true")
     parser.add_argument("--compare", action="store_true")
     args = parser.parse_args()
     data = load_year_data(args.attachment1, args.attachment2)
     cold_start = load_cold_start_forecast(args.attachment1)
-    result = run_question2(
-        data,
-        Question2Config(
-            forecast=ForecastConfig(
-                method=args.forecast,
-                candidate_count=args.candidate_count,
-                lambda_load=args.decay,
-                lambda_pv=args.decay,
-                planning_quantile=args.quantile,
-            )
+    config = Question2Config(
+        forecast=ForecastConfig(
+            method=args.forecast,
+            candidate_count=args.candidate_count,
+            lambda_load=args.decay,
+            lambda_pv=args.decay,
+            planning_quantile=args.quantile,
         ),
-        cold_start,
+        planner=args.planner,
+        scenario_count=args.scenario_count,
+        scenario_decay=args.scenario_decay,
+        scenario_window_days=args.scenario_window,
     )
+    if args.calibrate_scenarios:
+        if config.planner != "stochastic":
+            parser.error("--calibrate-scenarios requires --planner stochastic")
+        config, calibration_scores = calibrate_stochastic_parameters(data, cold_start, config)
+        for name, score in calibration_scores.items():
+            print(f"january_calibration[{name}]={score:.6f}")
+        print(f"selected_scenario_count={config.scenario_count}")
+        print(f"selected_scenario_decay={config.scenario_decay:.2f}")
+    result = run_question2(data, config, cold_start)
     print(f"simulated_days={len(result.days)} official_days={len(result.official_days)}")
     for key, value in result.metrics.items():
         print(f"{key}={value:.6f}")
@@ -430,10 +540,11 @@ def main() -> None:
         write_result2_workbook(args.template, args.output, result)
         comparisons: dict[str, YearResult] | None = None
         if args.compare:
-            comparisons = {args.forecast: result}
+            comparisons = {f"{args.forecast}_{config.planner}": result}
             for method in ("previous_day", "seven_day", "week_type", "similar_day"):
-                if method not in comparisons:
-                    comparisons[method] = run_question2(
+                comparison_name = f"{method}_deterministic"
+                if comparison_name not in comparisons:
+                    comparisons[comparison_name] = run_question2(
                         data,
                         Question2Config(forecast=ForecastConfig(method=method)),
                         cold_start,
