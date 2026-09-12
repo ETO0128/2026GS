@@ -234,8 +234,9 @@ $\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95$，此后不再利�
 
 此外，构造“星期类型与季节分组、曲线形状筛选、时间指数衰减”的相似日点预测作为
 对照。相似日的日历筛选和距离度量参考相关负荷与光伏预测研究
-\cite{mandal2006,acharya2020}。预测性能采用 MAE、RMSE 与 Bias 评价，并同时报告
-负荷、光伏和净负荷误差。
+\cite{mandal2006,acharya2020}。预测性能采用平均绝对误差（mean absolute error，MAE）、
+均方根误差（root mean square error，RMSE）与平均偏差（mean bias error，Bias）评价，
+并同时报告负荷、光伏和净负荷误差。
 
 \subsection{电价数据处理}
 
@@ -274,7 +275,8 @@ $\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95$，此后不再利�
   \qquad \eta_c=\eta_d=0.9.
   \label{eq:q1-soc}
 \end{equation}
-该效率处理与储能调度研究中常用的离散 SOC 方程一致\cite{gorman2024}。容量、功率和
+该效率处理与储能调度研究中常用的离散荷电状态（state of charge，SOC）方程一致
+\cite{gorman2024}。容量、功率和
 弃光约束分别为
 \begin{align}
   \SI{1200}{kWh}&\le e_t\le\SI{10800}{kWh}, \label{eq:q1-soc-bound}\\
@@ -1134,6 +1136,7 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
   \caption{问题四 4-3：波动电价下滚动调整策略的全年费用（2025-02-01--12-31，共 334 天）}
   \label{tab:q4-3}
   \small
+  \resizebox{\textwidth}{!}{%
   \begin{tabular}{lrrrrr}
     \toprule
     方案 & 结算购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 & 调整次数 \\
@@ -1147,7 +1150,8 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
     \midrule
     完全信息下界（已知真实负荷/光伏） & -- & -- & 12,831,089.48 & -18.65\% & 0 \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
 \end{table}
 
 
@@ -1190,7 +1194,7 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
 
 \subsection{敏感性分析}
 
-本节以问题三的滚动调整模型为对象，采用“一次一个因素”（OAT）方法考察储能 SOC 上下界、
+本节以问题三的滚动调整模型为对象，采用单因素法（one-at-a-time，OAT）考察储能 SOC 上下界、
 最大充放电功率、单向充放电效率、日首日末储电量、紧急购电倍率与残差场景幅度对全年费用
 的影响。表中数据不是外部经验值或人工插值，而是以附件~1--3 的原始电价、实际源荷和滚动
 光伏预报为输入，对 2025 年 2 月 1 日至 12 月 31 日共 334 天逐日重新求解所得。每次实验
@@ -1346,30 +1350,42 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
 \CumcmAIUsed{资料整理、思路讨论、代码调试和语言润色}
 
 \begin{thebibliography}{99}
+  \small
+  \bibitem{parisio2014} A. Parisio, E. Rikos, G. Tzamalis, et al. Use of model
+  predictive control for experimental microgrid optimization[J]. Applied Energy,
+  2014, 115: 37--46.
+
   \bibitem{nrel2022} P. Joshi and C. Gokhale-Welch. Fundamentals of Energy
   Storage[R]. Golden: National Renewable Energy Laboratory, 2022.
+
+  \bibitem{hyndman2021} R. J. Hyndman and G. Athanasopoulos. Time series
+  cross-validation[M/OL]//Forecasting: Principles and Practice. 3rd ed., 2021.
+
+  \bibitem{tashman2000} L. J. Tashman. Out-of-sample tests of forecasting
+  accuracy: An analysis and review[J]. International Journal of Forecasting,
+  2000, 16(4): 437--450.
+
+  \bibitem{wang2018} Y. Wang, Q. Chen, N. Zhang, et al. Conditional residual
+  modeling for probabilistic load forecasting[J]. IEEE Transactions on Power
+  Systems, 2018, 33(6): 7327--7330.
+
+  \bibitem{taylor2007} J. W. Taylor. Forecasting daily supermarket sales using
+  exponentially weighted quantile regression[J]. European Journal of Operational
+  Research, 2007, 178(1): 154--167.
+
+  \bibitem{mandal2006} P. Mandal, T. Senjyu, N. Urasaki, et al. A neural network
+  based several-hour-ahead electric load forecasting using similar days
+  approach[J]. International Journal of Electrical Power \& Energy Systems,
+  2006, 28(6): 367--373.
+
+  \bibitem{acharya2020} S. K. Acharya, Y.-M. Wi, and J. Lee. Day-ahead
+  forecasting for small-scale photovoltaic power based on similar day detection
+  with selective weather variables[J]. Electronics, 2020, 9(7): 1117.
 
   \bibitem{gorman2024} W. Gorman, G. Barbose, C. Miller, et al. Evaluating the
   potential for solar-plus-storage backup power in the United States as homes
   integrate efficient, flexible, and electrified energy technologies[J].
   Energy, 2024, 304: 132180.
-
-  \bibitem{parisio2014} A. Parisio, E. Rikos, G. Tzamalis, et al. Use of model
-  predictive control for experimental microgrid optimization[J]. Applied Energy,
-  2014, 115: 37--46.
-
-  \bibitem{parisio2016} A. Parisio, E. Rikos, and L. Glielmo. Stochastic model
-  predictive control for economic/environmental operation management of
-  microgrids: An experimental case study[J]. Journal of Process Control,
-  2016, 43: 24--37.
-
-  \bibitem{silvente2015} J. Silvente, G. M. Kopanos, E. N. Pistikopoulos, et al.
-  A rolling horizon optimization framework for the simultaneous energy supply
-  and demand planning in microgrids[J]. Applied Energy, 2015, 155: 485--501.
-
-  \bibitem{ghadimi2024} S. Ghadimi and W. B. Powell. Stochastic search for a
-  parametric cost function approximation: Energy storage with rolling forecasts[J].
-  European Journal of Operational Research, 2024, 312(2): 641--652.
 
   \bibitem{boyd2004} S. Boyd and L. Vandenberghe. Convex Optimization[M].
   Cambridge: Cambridge University Press, 2004.
@@ -1377,31 +1393,32 @@ $1.0239$ 元/kWh；全年价格区间为 $0.0076\sim1.7936$ 元/kWh（表~\ref{t
   \bibitem{scipy2020} P. Virtanen, R. Gommers, T. E. Oliphant, et al. SciPy 1.0:
   Fundamental algorithms for scientific computing in Python[J]. Nature Methods,
   2020, 17: 261--272.
-  \bibitem{rockafellar2000} R. T. Rockafellar and S. Uryasev.
-  Optimization of conditional value-at-risk[J]. Journal of Risk,
-  2000, 2(3): 21--41.
+
+  \bibitem{jayawardana2019} A. Jayawardana, A. P. Agalgaonkar,
+  D. A. Robinson, et al. Optimisation framework for the operation of battery
+  storage within solar-rich microgrids[J]. IET Smart Grid, 2019, 2(4): 504--513.
+
+  \bibitem{parisio2016} A. Parisio, E. Rikos, and L. Glielmo. Stochastic model
+  predictive control for economic/environmental operation management of
+  microgrids: An experimental case study[J]. Journal of Process Control,
+  2016, 43: 24--37.
+
+  \bibitem{liu2017} S. Liu, P. X. Liu, X. Wang, et al. Effects of correlated
+  photovoltaic power and load uncertainties on grid-connected microgrid
+  day-ahead scheduling[J]. IET Generation, Transmission \& Distribution,
+  2017, 11(14): 3620--3627.
+
+  \bibitem{silvente2015} J. Silvente, G. M. Kopanos, E. N. Pistikopoulos, et al.
+  A rolling horizon optimization framework for the simultaneous energy supply
+  and demand planning in microgrids[J]. Applied Energy, 2015, 155: 485--501.
 
   \bibitem{birge2011} J. R. Birge and F. Louveaux. Introduction to
   Stochastic Programming[M]. 2nd ed. New York: Springer, 2011.
 
+  \bibitem{ghadimi2024} S. Ghadimi and W. B. Powell. Stochastic search for a
+  parametric cost function approximation: Energy storage with rolling forecasts[J].
+  European Journal of Operational Research, 2024, 312(2): 641--652.
+
 \end{thebibliography}
-
-\newpage
-\begin{appendices}
-
-\section{主要程序代码}
-
-% TODO：放置关键算法代码或说明完整代码所在的支撑材料文件。
-
-\section{补充结果}
-
-问题二的补充验证结果由统一的因果回测程序生成；正文仅保留与模型选择和稳健性结论
-直接相关的统计量，避免与正式结果口径不同的旧版表格混入论文。
-
-\section{AI 工具使用详情索引}
-
-% TODO：按照竞赛要求另行生成“AI工具使用详情.pdf”，此处列出对应材料索引。
-
-\end{appendices}
 
 \end{document}
