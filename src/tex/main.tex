@@ -1285,4 +1285,95 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
 
 \end{thebibliography}
 
+\clearpage
+\appendix
+\section{核心算法与支撑材料说明}
+
+本附录给出与正文模型一致的核心算法伪代码，并说明源程序和结果文件之间的对应关系。
+伪代码仅保留影响模型口径的主要步骤；完整源程序以原格式置于支撑材料压缩包中，且不重复
+收录赛题提供的原始数据。
+
+\subsection{算法 A1：统一储能调度}
+
+\noindent\textbf{输入：}各时段电价、负荷与光伏电量，储能容量、功率、效率及首末状态约束。
+
+\noindent\textbf{输出：}购电、充电、放电、弃光和储电量序列。
+
+\begin{enumerate}[label=\arabic*.,leftmargin=2.5em,itemsep=0.2em,topsep=0.4em]
+  \item 检查各输入序列长度、非负性及储能边界的合法性。
+  \item 建立变量 $g_t,c_t,d_t,w_t,e_t$，写入母线能量平衡和 SOC 状态转移等式。
+  \item 设置购电、充放电、弃光、储能容量及首末状态的上下界。
+  \item 以 $\sum_t p_tg_t$ 为目标求解第一阶段线性规划，得到最低购电费用 $C^*$。
+  \item 增加费用不超过 $C^*$ 数值容差的约束，以 $\sum_t(c_t+d_t)$ 为第二目标重新求解，
+        消除等价最优解中的非必要循环充放电。
+  \item 复核能量平衡、SOC 递推、变量边界和首末状态；若残差超限则停止输出。
+  \item 返回调度序列及费用，并按结果模板的时间顺序写入文件。
+\end{enumerate}
+
+\subsection{算法 A2：因果日前调度}
+
+\noindent\textbf{输入：}截至决策日前一日的历史源荷数据、固定或因果预测电价、储能状态。
+
+\noindent\textbf{输出：}问题二或问题 4-2 的逐日计划、实际结算及全年汇总。
+
+\begin{enumerate}[label=\arabic*.,leftmargin=2.5em,itemsep=0.2em,topsep=0.4em]
+  \item 按日期顺序遍历测试期，并将上一日实际日末 SOC 作为当日初始状态。
+  \item 仅使用当日前历史数据计算负荷与光伏七日均值，形成净负荷点预测。
+  \item 从目标日前 90 天残差中选取 $K=42$ 个相似状态日，以衰减系数 $\lambda=0.95$
+        计算加权 $80\%$ 分位数，并据此修正计划净负荷。
+  \item 调用算法 A1 生成 0:00 日前购电与储能计划；问题 4-2 使用一月校准后锁定的近七日
+        电价预测。
+  \item 全天严格执行计划，以真实负荷和光伏计算缺口、弃电及五倍电价紧急购电费用。
+  \item 保存当日计划和结算结果，将真实数据及预测残差加入历史集合，再进入下一日。
+  \item 汇总 334 天的正常购电费、紧急购电费、预测误差及完全信息对照结果。
+\end{enumerate}
+
+\subsection{算法 A3：日内滚动调整}
+
+\noindent\textbf{输入：}0:00 日前计划，6:00、12:00、18:00 发布的光伏预报，残差场景及电价。
+
+\noindent\textbf{输出：}问题三或问题 4-3 的调整后计划、节点决策和实际费用。
+
+\begin{enumerate}[label=\arabic*.,leftmargin=2.5em,itemsep=0.2em,topsep=0.4em]
+  \item 在 0:00 依据当时可用预测和残差场景生成全天计划，并记录原始购电合同。
+  \item 对每个日内更新节点 $\tau$，冻结 $\tau$ 以前已执行动作和当前 SOC，只处理剩余时段。
+  \item 读取新发布的光伏预报，重建剩余时域预测和残差场景。
+  \item 分别计算保持现有计划的期望费用 $J_{\mathrm{keep}}$ 与重新优化的期望费用
+        $J_{\mathrm{adj}}$；两者均计入调整费和期望紧急购电费。
+  \item 固定调整策略总是采用新计划；择优策略仅在
+        $J_{\mathrm{adj}}<J_{\mathrm{keep}}$ 时替换尚未执行的计划。
+  \item 用真实源荷完成当日结算。问题 4-3 决策时使用因果电价预测，结算时使用实际波动电价。
+  \item 汇总各节点采用次数、调整量、购电费和紧急购电费，并写入结果文件。
+\end{enumerate}
+
+\section{源程序与结果文件对应关系}
+
+\begin{table}[H]
+  \centering
+  \caption{核心源程序、功能与输出文件}
+  \small
+  \begin{tabularx}{\textwidth}{p{1.7cm}>{\raggedright\arraybackslash}p{5.4cm}>{\raggedright\arraybackslash}X}
+    \toprule
+    对应问题 & 核心源程序 & 主要输出或功能 \\
+    \midrule
+    问题一 & \texttt{question1.py}，\texttt{microgrid\_core.py}
+      & 确定性调度、二级优化、\texttt{result1.xlsx} 及问题一图表 \\
+    问题二 & \texttt{question2.py}，\texttt{question2\_forecast.py}，
+      \texttt{question2\_dispatch.py}
+      & 因果预测、风险修正、固定计划结算与 \texttt{result2.xlsx} \\
+    问题三 & \texttt{q3\_model.py}，\texttt{run\_q3.py}，\texttt{fill\_result3.py}
+      & 日内滚动调整、节点价值统计与 \texttt{result3.xlsx} \\
+    问题 4-2 & \texttt{question4\_2.py}，\texttt{question4\_2\_forecast.py}，
+      \texttt{run\_q4\_2.py}
+      & 因果电价预测、日前调度对照与 \texttt{result4-2.xlsx} \\
+    问题 4-3 & \texttt{q4\_model.py}，\texttt{run\_q4\_3.py}，
+      \texttt{fill\_result4\_3.py}
+      & 波动电价滚动结算、方案比较与 \texttt{result4-3.xlsx} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+支撑材料压缩包保留上述完整源程序、程序生成的中间结果与图表数据，以及 AI 工具使用说明；
+文件和压缩包属性中不保留参赛队员姓名等个人信息。
+
 \end{document}
