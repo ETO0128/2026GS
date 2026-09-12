@@ -25,6 +25,7 @@ from microgrid_core import (
     solve_dispatch,
     validate_dispatch,
 )
+from workbook_style import normalize_populated_fonts
 
 
 SLOTS_PER_DAY = 144
@@ -308,6 +309,7 @@ def write_result_workbook(
     storage_sheet["E3"].number_format = "0.0000"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    normalize_populated_fonts(workbook)
     workbook.save(output_path)
 
 

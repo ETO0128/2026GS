@@ -9,41 +9,41 @@
     "adjusted_days": 0
   },
   "lcy_baseline": {
-    "total_yuan": 15682660.27225786,
-    "contract_fee_yuan": 13955307.571532963,
-    "emergency_cost_yuan": 1727352.700724899,
-    "emergency_kwh": 448753.40616417635,
-    "adjustments": 898,
+    "total_yuan": 15579293.38262055,
+    "contract_fee_yuan": 13978392.095425524,
+    "emergency_cost_yuan": 1600901.2871950262,
+    "emergency_kwh": 414309.04267553927,
+    "adjustments": 774,
     "adjusted_days": 334
   },
   "q2_contract_plus_lcy_rolling": {
-    "total_yuan": 16657521.37954262,
-    "contract_fee_yuan": 15432924.238074368,
-    "emergency_cost_yuan": 1224597.141468253,
-    "emergency_kwh": 305630.0944695092,
-    "adjustments": 894,
+    "total_yuan": 16580578.897119693,
+    "contract_fee_yuan": 15227767.405581988,
+    "emergency_cost_yuan": 1352811.491537704,
+    "emergency_kwh": 333216.5471448756,
+    "adjustments": 775,
     "adjusted_days": 334
   },
-  "hybrid_saving_vs_q2_yuan": 204664.5034190435,
-  "hybrid_difference_vs_lcy_yuan": 974861.1072847601,
+  "hybrid_saving_vs_q2_yuan": 281606.9858419709,
+  "hybrid_difference_vs_lcy_yuan": 1001285.5144991428,
   "bootstrap_hybrid_vs_q2": {
-    "observed_saving_yuan": 204664.50341904265,
+    "observed_saving_yuan": 281606.9858419697,
     "circular_block_days": 7,
     "ci95_yuan": [
-      -65718.97500538775,
-      451520.84503097663
+      -79097.33344516704,
+      585770.0764715632
     ],
-    "probability_saving_positive": 0.9312,
-    "improved_days": 150
+    "probability_saving_positive": 0.942,
+    "improved_days": 168
   },
   "bootstrap_lcy_vs_hybrid": {
-    "observed_saving_yuan": 974861.1072847587,
+    "observed_saving_yuan": 1001285.5144991428,
     "circular_block_days": 7,
     "ci95_yuan": [
-      695113.5827585224,
-      1199010.3523923259
+      832253.048439658,
+      1151812.5078444693
     ],
     "probability_saving_positive": 1.0,
-    "improved_days": 188
+    "improved_days": 165
   }
 }

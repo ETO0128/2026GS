@@ -34,6 +34,7 @@ from question2_forecast import (
     forecast_metrics,
 )
 from question2_scenarios import build_joint_residual_scenarios
+from workbook_style import normalize_populated_fonts
 
 
 INITIAL_SOC_KWH = 6000.0
@@ -396,6 +397,7 @@ def write_result2_workbook(template: Path, output: Path, result: YearResult) -> 
     os.close(descriptor)
     temporary = Path(temporary_name)
     try:
+        normalize_populated_fonts(workbook)
         workbook.save(temporary)
         workbook.close()
         _validate_result2(temporary, result)

@@ -24,7 +24,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--days", type=int, default=0, help="只跑前 N 天（调试）")
-    ap.add_argument("--s-max", type=int, default=6)
+    ap.add_argument("--s-max", type=int, default=q3.DEFAULT_SCENARIO_COUNT)
     ap.add_argument("--policies", type=str, default="none,fixed,selective")
     ap.add_argument("--node-sets", type=str, default="", help="例如 0,6,6+12,6+12+18")
     ap.add_argument("--pv-interpolation", choices=("step", "linear"), default="step")
@@ -43,10 +43,13 @@ def main() -> None:
 
     emit("问题三评价期实验（滚动调整购电策略）")
     emit(f"结果窗口 {att.dates[win[0]]} ~ {att.dates[win[-1]]}，共 {len(win)} 天")
+    emit(f"代表场景数 {args.s_max}；光伏小时内映射 {args.pv_interpolation}")
     emit("")
 
     summary = {}
     json_out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
+                      "scenario_count": args.s_max,
+                      "pv_interpolation": args.pv_interpolation,
                       "policies": {}, "node_sets": {}}
     store: dict[str, dict[str, np.ndarray]] = {}
     for pol in [p for p in args.policies.split(",") if p]:

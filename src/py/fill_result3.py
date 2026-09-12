@@ -42,6 +42,7 @@ from openpyxl import load_workbook
 import q2_model as q2
 import q3_model as q3
 from fill_result2 import fmt_clock, label_to_period, merge_intervals, style_from
+from workbook_style import normalize_populated_fonts
 
 BLOCKS = [(0, 240), (240, 480), (480, 720), (720, 960), (960, 1200), (1200, 1440)]
 DEC = 4
@@ -49,7 +50,8 @@ DEC = 4
 
 # --------------------------------------------------------------------------- 逐日结果
 def compute_days(att: q2.Attachment, f3: q3.PvForecast3, policy: str,
-                 s_max: int = 6, limit: int | None = None) -> list[dict]:
+                 s_max: int = q3.DEFAULT_SCENARIO_COUNT,
+                 limit: int | None = None) -> list[dict]:
     window = att.window[:limit] if limit else att.window
     days = []
     for i in window:
@@ -179,6 +181,7 @@ def fill(template: Path, output: Path, days: list[dict]) -> None:
             ws.cell(row, c).value = None
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    normalize_populated_fonts(wb)
     wb.save(output)
 
 
@@ -244,7 +247,7 @@ def verify(output: Path, days: list[dict], policy: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--policy", choices=["none", "fixed", "selective"], default="selective")
-    ap.add_argument("--s-max", type=int, default=6)
+    ap.add_argument("--s-max", type=int, default=q3.DEFAULT_SCENARIO_COUNT)
     ap.add_argument("--limit", type=int, default=None, help="只填前 N 天（检查格式用）")
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--template", type=Path, default=None)

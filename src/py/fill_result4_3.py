@@ -30,7 +30,7 @@ from fill_result3 import fill, verify
 
 
 def compute_days(att: q2.Attachment, f3: q3.PvForecast3, p4: q4.Prices4,
-                 price_mode: str, policy: str, s_max: int = 6,
+                 price_mode: str, policy: str, s_max: int = q3.DEFAULT_SCENARIO_COUNT,
                  limit: int | None = None) -> list[dict]:
     window = att.window[:limit] if limit else att.window
     days = []
@@ -56,7 +56,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--price-mode", choices=list(q4.PRICE_MODES), default="seven_day")
     ap.add_argument("--policy", choices=["none", "fixed", "selective"], default="selective")
-    ap.add_argument("--s-max", type=int, default=6)
+    ap.add_argument("--s-max", type=int, default=q3.DEFAULT_SCENARIO_COUNT)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--template", type=Path, default=None)

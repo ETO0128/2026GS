@@ -10,7 +10,8 @@
 
 三个工作表按题目要求填写
 ------------------------
-1) 计划购电量：334 天（2025-02-01 ~ 12-31）× 144 个 10 分钟时段的计划购电量（kWh）
+1) 计划购电量：334 天（2025-02-01 ~ 12-31）× 144 个 10 分钟时段的计划购电量（kWh），
+   并填写每日购电量、购电费汇总
 2) 充放电量：每天 6 个四小时时段（0:00-4:00 ... 20:00-24:00）的充放电量，
    以及 0:00 与 24:00 的储电量。日期只写在当天首行，0:00 储电量写在当天第 1 行、
    24:00 储电量写在当天第 2 行
@@ -32,10 +33,11 @@ from pathlib import Path
 
 import numpy as np
 from openpyxl import load_workbook
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 import q2_model as q
 import q2_stochastic as qs
+from workbook_style import normalize_populated_fonts
 
 BLOCKS = [(0, 240), (240, 480), (480, 720), (720, 960), (960, 1200), (1200, 1440)]
 DEC = 4
@@ -158,6 +160,12 @@ def fill(template: Path, output: Path, days: list[dict], variant: str) -> None:
             cell = ws.cell(row, c)
             cell.value = round(float(d["g"][j]), DEC)
             cell.number_format = "0.0000"
+        # 模板最后两列分别为全天购电量与全天购电费。旧版填表器只写入
+        # 144 个时段，导致问题四正式结果的日汇总列为空。
+        ws.cell(row, 146).value = round(float(d["g"].sum()), DEC)
+        ws.cell(row, 147).value = round(float(d["plan_cost"]), DEC)
+        ws.cell(row, 146).number_format = "0.0000"
+        ws.cell(row, 147).number_format = "0.0000"
 
     # ---------------- 2) 充放电量
     ws = wb["充放电量"]
@@ -216,6 +224,7 @@ def fill(template: Path, output: Path, days: list[dict], variant: str) -> None:
             ws.cell(row, c).value = None
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    normalize_populated_fonts(wb)
     wb.save(output)
 
 
@@ -231,10 +240,24 @@ def verify(output: Path, days: list[dict]) -> None:
     a_rows = {parse_ref(k)[1] for k, v in g_sheet.items()
               if parse_ref(k)[0] == "A" and str(v).replace("/", "").isdigit()}
     total_g = sum(float(v) for k, v in g_sheet.items()
-                  if parse_ref(k)[0] != "A" and parse_ref(k)[1] >= 2 and v not in ("", None))
+                  if 2 <= column_index_from_string(parse_ref(k)[0]) <= 145
+                  and parse_ref(k)[1] >= 2 and v not in ("", None))
+    total_daily_g = sum(float(v) for k, v in g_sheet.items()
+                        if parse_ref(k)[0] == "EP" and parse_ref(k)[1] >= 2
+                        and v not in ("", None))
+    total_daily_cost = sum(float(v) for k, v in g_sheet.items()
+                           if parse_ref(k)[0] == "EQ" and parse_ref(k)[1] >= 2
+                           and v not in ("", None))
     print(f"校验：计划购电量工作表数据行数 = {len([r for r in a_rows if r >= 2])}（应为 334）")
     print(f"      计划购电量合计 = {total_g:,.1f} kWh（内部值 "
           f"{sum(d['g'].sum() for d in days):,.1f}）")
+    print(f"      日汇总列合计 = {total_daily_g:,.1f} kWh / {total_daily_cost:,.1f} 元（内部值 "
+          f"{sum(d['g'].sum() for d in days):,.1f} / "
+          f"{sum(d['plan_cost'] for d in days):,.1f}）")
+    if abs(total_daily_g - sum(d["g"].sum() for d in days)) > 0.1:
+        raise ValueError("计划购电量工作表的全天购电量汇总不一致")
+    if abs(total_daily_cost - sum(d["plan_cost"] for d in days)) > 0.1:
+        raise ValueError("计划购电量工作表的全天购电费汇总不一致")
 
     e_sheet = grid["紧急购电量"]
     emg_cells = [(k, v) for k, v in e_sheet.items() if parse_ref(k)[0] == "C"

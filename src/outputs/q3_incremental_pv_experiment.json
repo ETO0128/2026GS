@@ -1,32 +1,32 @@
 {
   "existing": {
-    "total_yuan": 15682660.27225786,
-    "emergency_kwh": 448753.40616417635,
+    "total_yuan": 15579293.38262055,
+    "emergency_kwh": 414309.04267553927,
     "extra_accepted_days": 0,
     "saving_vs_existing_yuan": 0.0
   },
   "plus_0300": {
-    "total_yuan": 15679563.011651065,
-    "emergency_kwh": 436283.2437758645,
+    "total_yuan": 15577481.489269285,
+    "emergency_kwh": 409003.0598751799,
     "extra_accepted_days": 334,
-    "saving_vs_existing_yuan": 3097.2606067955494
+    "saving_vs_existing_yuan": 1811.8933512661606
   },
   "plus_0900": {
-    "total_yuan": 15485604.586490234,
-    "emergency_kwh": 416135.2714537102,
+    "total_yuan": 15417771.951068642,
+    "emergency_kwh": 389865.55183103326,
     "extra_accepted_days": 334,
-    "saving_vs_existing_yuan": 197055.6857676264
+    "saving_vs_existing_yuan": 161521.43155190907
   },
   "plus_1500": {
-    "total_yuan": 15596746.540272262,
-    "emergency_kwh": 435959.9179473081,
+    "total_yuan": 15530788.18203495,
+    "emergency_kwh": 408789.26232463546,
     "extra_accepted_days": 334,
-    "saving_vs_existing_yuan": 85913.7319855988
+    "saving_vs_existing_yuan": 48505.20058559999
   },
   "plus_2100": {
-    "total_yuan": 15682304.86187185,
-    "emergency_kwh": 448104.28421656194,
-    "extra_accepted_days": 217,
-    "saving_vs_existing_yuan": 355.41038601100445
+    "total_yuan": 15579402.300094657,
+    "emergency_kwh": 414322.9238419429,
+    "extra_accepted_days": 85,
+    "saving_vs_existing_yuan": -108.91747410595417
   }
 }

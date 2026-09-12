@@ -36,6 +36,8 @@ import numpy as np
 from scipy.optimize import linprog
 
 import q2_model as q2
+
+DEFAULT_SCENARIO_COUNT = 18
 from question2_data import YearData
 from question2_forecast import ForecastConfig, forecast_day as official_forecast_day
 
@@ -183,7 +185,8 @@ def forecast_full(att, f3: PvForecast3, i: int, tau: int, load_lam: float = 1.0,
     return l_fc, v_fc
 
 
-def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
+def residual_scenarios(att, f3: PvForecast3, i: int, tau: int,
+                       s_max: int = DEFAULT_SCENARIO_COUNT,
                        load_lam: float = 1.0, scen_scale: float = 1.0,
                        fc_kwargs: dict | None = None,
                        scenario_decay: float = 0.95,
@@ -246,7 +249,8 @@ def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
 
 
 def load_only_residual_scenarios(att, f3: PvForecast3, i: int, tau: int,
-                                 known_pv: np.ndarray, s_max: int = 6,
+                                 known_pv: np.ndarray,
+                                 s_max: int = DEFAULT_SCENARIO_COUNT,
                                  load_lam: float = 1.0,
                                  fc_kwargs: dict | None = None,
                                  forecast_source: str = "legacy"):
@@ -396,7 +400,8 @@ def eval_seg(price, q, c, d, q_plan, scen_net, weights, P: "Params" = DEFAULT_PA
 
 
 # --------------------------------------------------------------------------- 单日仿真
-def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
+def simulate_day(att, f3: PvForecast3, price, i: int,
+                 s_max: int = DEFAULT_SCENARIO_COUNT,
                  policy: str = "selective", tol: float = 1e-6, node_subset=None,
                  price_plan=None, load_lam: float = 1.0,
                  load_bias: bool = False, bias_clip: float = 0.4,

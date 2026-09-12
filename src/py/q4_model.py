@@ -77,7 +77,8 @@ class Prices4:
 
 
 def simulate_day4(att: q2.Attachment, f3: q3.PvForecast3, price_act: np.ndarray,
-                  i: int, price_mode: str, p4: Prices4, s_max: int = 6,
+                  i: int, price_mode: str, p4: Prices4,
+                  s_max: int = q3.DEFAULT_SCENARIO_COUNT,
                   policy: str = "selective") -> dict:
     """4-3 的单日仿真：决策用价格预测，结算用实际波动电价。"""
     return q3.simulate_day(att, f3, price_act, i, s_max=s_max, policy=policy,

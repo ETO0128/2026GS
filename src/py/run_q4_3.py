@@ -44,7 +44,7 @@ NAME_CN = {
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--days", type=int, default=0, help="只跑前 N 天（调试）")
-    ap.add_argument("--s-max", type=int, default=6)
+    ap.add_argument("--s-max", type=int, default=q3.DEFAULT_SCENARIO_COUNT)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--variants", type=str, default="",
                     help="逗号分隔的方案名；留空运行全部方案")
@@ -63,6 +63,7 @@ def main() -> None:
 
     lines: list[str] = []
     out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
+                 "scenario_count": args.s_max,
                  "formal_variant": "volatile_seven_day",
                  "price_calibration": {"window": "2025-01-08--2025-01-31",
                                        "criterion": "minimum RMSE; MAE and bias for audit",
@@ -75,6 +76,7 @@ def main() -> None:
 
     emit("问题四 4-3：波动电价下的滚动调整")
     emit(f"结果窗口 {att.dates[win[0]]} ~ {att.dates[win[-1]]}，共 {len(win)} 天")
+    emit(f"问题三代表场景数 {args.s_max}")
     st = out["price_stats"]
     emit("")
     emit("附件4 电价特征")

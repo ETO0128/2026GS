@@ -47,7 +47,7 @@ KIND_NAME = {"real": "附件3 实际光伏预报", "perfect": "完美光伏预�
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--days", type=int, default=0, help="只跑前 N 天（调试）")
-    ap.add_argument("--s-max", type=int, default=6)
+    ap.add_argument("--s-max", type=int, default=q3.DEFAULT_SCENARIO_COUNT)
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -59,7 +59,7 @@ def main() -> None:
 
     lines: list[str] = []
     out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
-                 "cases": [], "baseline": None}
+                 "scenario_count": args.s_max, "cases": [], "baseline": None}
 
     def emit(s=""):
         lines.append(str(s))

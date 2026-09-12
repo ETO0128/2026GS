@@ -19,11 +19,11 @@ import q2_model as q2
 import q3_model as q3
 
 CONFIGS = [
-    ("基线（λ=1.0, s=6, α=5）", {}),
+    ("基线（λ=1.0, s=18, α=5）", {}),
     ("λ=0.9", dict(load_lam=0.9)),
     ("λ=0.8", dict(load_lam=0.8)),
     ("场景数 s=12", dict(s_max=12)),
-    ("场景数 s=20", dict(s_max=20)),
+    ("场景数 s=24", dict(s_max=24)),
     ("日级偏差校正", dict(load_bias=True)),
     ("前瞻对冲 α=3", dict(lookahead_alpha=3.0)),
     ("前瞻对冲 α=2", dict(lookahead_alpha=2.0)),
@@ -48,6 +48,7 @@ def main() -> None:
     emit("")
     emit(f"{'配置':<24}{'结算购电费':>16}{'紧急购电费':>16}{'合计':>16}")
     base_total = None
+    totals: list[float] = []
     for name, kw in CONFIGS:
         fee = emg = tot = 0.0
         for i in win:
@@ -57,10 +58,12 @@ def main() -> None:
             tot += r["total"]
         if base_total is None:
             base_total = tot
+        totals.append(tot)
         emit(f"{name:<24}{fee:>16,.2f}{emg:>16,.2f}{tot:>16,.2f}")
     emit("")
-    emit(f"基线合计 {base_total:,.2f} 元；上述配置相对基线的变动均在 ±0.4% 以内，")
-    emit("说明口径 A 下问题三模型已接近该信息结构的上限，可优化空间主要取决于预测精度本身。")
+    max_change = max(abs(total / base_total - 1.0) for total in totals) * 100.0
+    emit(f"基线合计 {base_total:,.2f} 元；上述配置相对基线的最大绝对变动为 {max_change:.2f}%。")
+    emit("该短窗口扫描仅用于识别进一步校准方向，不替代评价期外推或正式全年结果。")
 
     out = root / "src" / "outputs" / "q3_tune_report.txt"
     out.write_text("\n".join(lines), encoding="utf-8")

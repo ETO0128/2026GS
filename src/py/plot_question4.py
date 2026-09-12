@@ -75,7 +75,7 @@ def figure_price_band(p4: q4.Prices4, att: q2.Attachment, fig_dir: Path) -> None
     ax.set_ylabel("电价/(元·kWh$^{-1}$)")
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, ncol=2, loc="upper left")
-    ax.set_title("附件4 波动电价：日内形态与附件1 一致，但存在显著的日间波动", fontsize=10)
+    ax.set_title("附件4 波动电价：平均日内形态接近附件1，单日价格仍有明显偏差", fontsize=10)
     fig.savefig(fig_dir / "q4_price_band.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -101,7 +101,7 @@ def figure_cost(sum_: dict, fig_dir: Path) -> None:
     ax.set_ylim(min(tot + [sum_["perfect_bound"]["total"] / 1e4]) * 0.93, max(tot) * 1.04)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
-    ax.set_title("问题四 4-3：波动电价下各方案的全年费用", fontsize=10)
+    ax.set_title("问题四：波动电价下日内方案的全年费用", fontsize=10)
     fig.savefig(fig_dir / "q4_3_cost.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -125,7 +125,7 @@ def figure_cost42(sum42: dict, fig_dir: Path) -> None:
     ax.set_ylim(min(tot + [sum42["perfect_bound"]["total"] / 1e4]) * 0.93, max(tot) * 1.04)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
-    ax.set_title("问题四 4-2：波动电价下各方案的全年费用", fontsize=10)
+    ax.set_title("问题四：波动电价下日前方案的全年费用", fontsize=10)
     fig.savefig(fig_dir / "q4_2_cost.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
