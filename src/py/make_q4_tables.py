@@ -91,7 +91,7 @@ NAME_CN_42 = {
 }
 
 
-def tex_table42(sum42: dict) -> str:
+def tex_table42(sum42: dict, innovation: dict | None = None) -> str:
     v = sum42["variants"]
     base = v["fixed_price"]["total"]
     out = ["% 由 src/py/make_q4_tables.py 自动生成，请勿手工修改",
@@ -106,6 +106,12 @@ def tex_table42(sum42: dict) -> str:
         rel = "--" if key == "fixed_price" else f"{(d['total']-base)/base*100:+.2f}\\%"
         out.append(f"    {NAME_CN_42[key]} & {fmt(d['plan_cost'])} & {fmt(d['emg_cost'])} & "
                    f"{fmt(d['total'])} & {rel} \\\\")
+        if key == "volatile_seven_day" and innovation is not None:
+            enhanced = innovation["two_day_lookahead"]
+            total = enhanced["total_cost_yuan"]
+            emergency = enhanced["emergency_cost_yuan"]
+            out.append(f"    波动电价，两日前瞻（增强） & {fmt(total-emergency)} & "
+                       f"{fmt(emergency)} & {fmt(total)} & {(total-base)/base*100:+.2f}\\% \\\\")
     out.append(r"    \midrule")
     pb = sum42["perfect_bound"]["total"]
     out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(pb)} & "
@@ -131,8 +137,10 @@ def main() -> None:
     sp42 = root / "src" / "outputs" / "q4_2_summary.json"
     if sp42.exists():
         sum42 = json.loads(sp42.read_text(encoding="utf-8"))
+        innovation_path = root / "src" / "outputs" / "q4_innovation_experiment.json"
+        innovation = json.loads(innovation_path.read_text(encoding="utf-8")) if innovation_path.exists() else None
         out42 = tex_out.with_name("q4_2_tables.tex")
-        out42.write_text(tex_table42(sum42) + "\n", encoding="utf-8")
+        out42.write_text(tex_table42(sum42, innovation) + "\n", encoding="utf-8")
         print(f"已写入 {out42}")
     for k in ORDER:
         d = sum_["variants"][k]
