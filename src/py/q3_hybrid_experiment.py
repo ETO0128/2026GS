@@ -24,14 +24,20 @@ def summarize(rows):
     }
 
 
-def paired_bootstrap_saving(reference, candidate, samples=5000, seed=2026):
+def paired_bootstrap_saving(reference, candidate, samples=5000, seed=2026, block=7):
     differences = np.asarray([a["total"] - b["total"] for a, b in zip(reference, candidate)])
     rng = np.random.default_rng(seed)
     means = np.empty(samples)
+    starts = np.arange(len(differences))
     for k in range(samples):
-        means[k] = differences[rng.integers(0, len(differences), len(differences))].sum()
+        selected = []
+        while len(selected) < len(differences):
+            start = int(rng.choice(starts))
+            selected.extend((start + j) % len(differences) for j in range(block))
+        means[k] = differences[np.asarray(selected[:len(differences)])].sum()
     return {
         "observed_saving_yuan": float(differences.sum()),
+        "circular_block_days": block,
         "ci95_yuan": [float(x) for x in np.quantile(means, [0.025, 0.975])],
         "probability_saving_positive": float(np.mean(means > 0.0)),
         "improved_days": int(np.sum(differences > 0.0)),

@@ -46,6 +46,8 @@ def main() -> None:
     ap.add_argument("--days", type=int, default=0, help="只跑前 N 天（调试）")
     ap.add_argument("--s-max", type=int, default=6)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--variants", type=str, default="",
+                    help="逗号分隔的方案名；留空运行全部方案")
     args = ap.parse_args()
 
     root = q2.project_root()
@@ -89,7 +91,12 @@ def main() -> None:
     emit("")
 
     emit(f"{'方案':<34}{'结算购电费':>16}{'紧急购电费':>16}{'合计':>16}{'调整次数':>10}")
-    for name, mode, policy in VARIANTS:
+    selected_variants = set(filter(None, args.variants.split(",")))
+    variants = [item for item in VARIANTS if not selected_variants or item[0] in selected_variants]
+    unknown = selected_variants - {item[0] for item in VARIANTS}
+    if unknown:
+        raise ValueError(f"未知方案：{sorted(unknown)}")
+    for name, mode, policy in variants:
         fee = emg = total = 0.0
         emg_kwh = 0.0
         adj = 0
@@ -117,21 +124,22 @@ def main() -> None:
         emit(f"{NAME_CN[name]:<34}{fee:>16,.2f}{emg:>16,.2f}{total:>16,.2f}{adj:>10}")
 
     emit("")
-    base = out["variants"]["fixed_price"]
-    orac = out["variants"]["volatile_oracle"]
-    prev = out["variants"]["volatile_prev"]
-    seven = out["variants"]["volatile_seven_day"]
-    prof = out["variants"]["volatile_profile"]
-    emit("对比结论")
-    emit(f"  1) 波动电价使全年费用上升：近七日均值正式方案合计 {seven['total']:,.2f} 元，"
-         f"比固定电价基准高 {seven['total'] - base['total']:,.2f} 元"
-         f"（{(seven['total'] - base['total']) / base['total'] * 100:.2f}%）")
-    emit(f"  2) 价格信息价值：正式近七日均值方案比已知当天电价多 "
-         f"{seven['total'] - orac['total']:,.2f} 元"
-         f"（{(seven['total'] - orac['total']) / orac['total'] * 100:.2f}%）；"
-         f"历史扩展均值因果对照比正式方案多 {prof['total'] - seven['total']:,.2f} 元，"
-         f"前一日预测比正式方案多 {prev['total'] - seven['total']:,.2f} 元")
-    emit(f"  3) 与完全信息下界 {pb['total']:,.2f} 元的差距即为预测误差与日内不可调部分的代价")
+    if not selected_variants:
+        base = out["variants"]["fixed_price"]
+        orac = out["variants"]["volatile_oracle"]
+        prev = out["variants"]["volatile_prev"]
+        seven = out["variants"]["volatile_seven_day"]
+        prof = out["variants"]["volatile_profile"]
+        emit("对比结论")
+        emit(f"  1) 波动电价使全年费用上升：近七日均值正式方案合计 {seven['total']:,.2f} 元，"
+             f"比固定电价基准高 {seven['total'] - base['total']:,.2f} 元"
+             f"（{(seven['total'] - base['total']) / base['total'] * 100:.2f}%）")
+        emit(f"  2) 价格信息价值：正式近七日均值方案比已知当天电价多 "
+             f"{seven['total'] - orac['total']:,.2f} 元"
+             f"（{(seven['total'] - orac['total']) / orac['total'] * 100:.2f}%）；"
+             f"历史扩展均值因果对照比正式方案多 {prof['total'] - seven['total']:,.2f} 元，"
+             f"前一日预测比正式方案多 {prev['total'] - seven['total']:,.2f} 元")
+        emit(f"  3) 与完全信息下界 {pb['total']:,.2f} 元的差距即为预测误差与日内不可调部分的代价")
 
     out_path = args.out or root / "src" / "outputs" / "q4_3_report.txt"
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -5,7 +5,8 @@
     python src/py/fill_result2.py --variant B     # 变体 B：购电量照付不议 + 储能日内再调度
     python src/py/fill_result2.py --limit 20      # 只填前 20 天，用于检查格式
 
-输出：src/附件5/result2.xlsx（模板读自 problems/C题/附件/附件5/result2.xlsx）
+本文件只保留旧模型复现实验，默认输出 ``src/outputs/result2_legacy.xlsx``，不会覆盖正式
+工作簿。正式结果请运行 ``question2.py --write-results``。
 
 三个工作表按题目要求填写
 ------------------------
@@ -277,7 +278,10 @@ def main() -> None:
     root = Path(args.data_root) if args.data_root else q.project_root()
     template = Path(args.template) if args.template else \
         root / "problems" / "C题" / "附件" / "附件5" / "result2.xlsx"
-    output = Path(args.output) if args.output else root / "src" / "附件5" / "result2.xlsx"
+    output = Path(args.output) if args.output else root / "src" / "outputs" / "result2_legacy.xlsx"
+    official = (root / "src" / "附件5" / "result2.xlsx").resolve()
+    if output.resolve() == official:
+        raise SystemExit("旧模型入口禁止覆盖正式 result2.xlsx；请运行 question2.py --write-results")
 
     att = q.Attachment(root)
     days = compute_days(att, args.variant, args.limit)

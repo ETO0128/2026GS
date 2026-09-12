@@ -17,7 +17,10 @@ from pathlib import Path
 import numpy as np
 
 import q2_model as q
-from fill_result2 import BLOCKS, block_label, fmt_clock, merge_intervals
+from fill_result2 import BLOCKS, block_label, fmt_clock
+from question2 import Question2Config, run_question2
+from question2_data import load_cold_start_forecast, load_year_data
+from question2_dispatch import compress_emergency_events
 
 DATES = [(3, 20), (6, 21), (9, 23), (12, 21)]
 SPECIFIED = [600, 720, 840, 960, 1080, 1200]      # 题目表 1 指定的六个时段起始分钟
@@ -26,21 +29,17 @@ BLOCK_NAMES = ["0:00-4:00", "4:00-8:00", "8:00-12:00",
 DEC = 4
 
 
-def collect(att: q.Attachment, day: dt.date) -> dict:
-    i = att.day_index(day)
-    L, V = att.load_kwh[i], att.pv_kwh[i]
-    net_act = L - V
-    fl, fv = q.forecast_day(att, i)
-    plan = q.plan_lp(att.price, fl, fv, q.E0_KWH, "cycle")
-    committed = plan["g"] + plan["d"] - plan["c"]
-    shortfall = np.maximum(0.0, net_act - committed)
-    return {"date": day,
-            "g": plan["g"], "c": plan["c"], "d": plan["d"],
-            "soc0": float(plan["e"][0]), "soc24": float(plan["e"][-1]),
-            "purchase": float(plan["g"].sum()), "cost": float(np.dot(att.price, plan["g"])),
-            "emg": merge_intervals(shortfall),
-            "emg_kwh": float(shortfall.sum()),
-            "emg_cost": float(5 * np.dot(att.price, shortfall))}
+def collect(record) -> dict:
+    plan, execution = record.plan, record.execution
+    events = compress_emergency_events(execution.emergency_kwh)
+    emg = [(event.start_minute // 10, event.end_minute // 10, event.energy_kwh)
+           for event in events]
+    return {"date": record.date,
+            "g": plan.grid_kwh, "c": plan.charge_kwh, "d": plan.discharge_kwh,
+            "soc0": float(plan.soc_kwh[0]), "soc24": float(plan.soc_kwh[-1]),
+            "purchase": float(plan.grid_kwh.sum()), "cost": float(plan.planned_cost_yuan),
+            "emg": emg, "emg_kwh": float(execution.emergency_kwh.sum()),
+            "emg_cost": float(execution.emergency_cost_yuan)}
 
 
 def num(x: float, dec: int = DEC) -> str:
@@ -157,8 +156,12 @@ def main() -> None:
         root / "src" / "tex" / "q2_tables_appendix.tex"
     txt_out = Path(args.txt_out) if args.txt_out else root / "src" / "outputs" / "q2_tables.txt"
 
-    att = q.Attachment(root)
-    rows = [collect(att, dt.date(2025, m, d)) for m, d in DATES]
+    attachment_dir = root / "problems" / "C题" / "附件"
+    data = load_year_data(attachment_dir / "附件1.xlsx", attachment_dir / "附件2.xlsx")
+    cold = load_cold_start_forecast(attachment_dir / "附件1.xlsx")
+    result = run_question2(data, Question2Config(), cold)
+    by_date = {record.date: record for record in result.official_days}
+    rows = [collect(by_date[dt.date(2025, m, d)]) for m, d in DATES]
 
     lines = ["问题二指定日期结果（口径：变体 A 严格按计划执行，与 result2.xlsx 一致）", ""]
     for d in rows:

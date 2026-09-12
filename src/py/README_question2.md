@@ -7,7 +7,7 @@
 | `q2_model.py` | 公共底座：数据层（附件1 电价、附件2 全年实际负荷/光伏）、日前计划 LP、实时结算、因果预测 |
 | `q2_stochastic.py` | 随机优化层：整日残差场景生成、两阶段随机 LP（含 CVaR）、报童机制校验、实时再调度 |
 | `run_question2.py` | 全年实验：自检 → 预测质量 → 策略阶梯 → 临界分位验证 → 随机规划与安全余量 |
-| `fill_result2.py` | 把结果回填到官方模板 `result2.xlsx`（计划购电量 / 充放电量 / 紧急购电量） |
+| `fill_result2.py` | 旧模型复现实验入口，默认只写 `outputs/result2_legacy.xlsx` |
 | `make_q2_tables.py` | 生成论文表 1/表 2/表 3 与附录紧急购电明细（LaTeX，数字全部由代码生成） |
 | `plot_question2.py` | 论文用图（输出到 `src/tex/figure/`） |
 
@@ -21,12 +21,12 @@
 
 ```powershell
 python -m pip install -r src/py/requirements.txt
-python src/py/run_question2.py            # 全年 334 天，约 4~6 分钟
+python src/py/run_question2.py            # 2--12 月评价期 334 天
 python src/py/run_question2.py --quick    # 冒烟测试，只跑前 12 天
 python src/py/plot_question2.py           # 生成论文用图
-python src/py/make_q2_tables.py           # 生成论文表 1 / 表 2 / 表 3
-python src/py/fill_result2.py             # 回填 result2.xlsx（变体 A，默认）
-python src/py/fill_result2.py --variant B # 回填 result2.xlsx（变体 B）
+python src/py/make_q2_tables.py           # 从正式模型生成论文表 1 / 表 2 / 表 3
+python src/py/question2.py --write-results --plots  # 生成正式 result2.xlsx 与论文图
+python src/py/fill_result2.py             # 仅复现旧模型，写入 outputs/result2_legacy.xlsx
 ```
 
 依赖：`numpy`、`scipy`（`linprog(..., method="highs")`）、`matplotlib`（仅绘图需要）。

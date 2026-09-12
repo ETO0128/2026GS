@@ -245,6 +245,39 @@ def residual_scenarios(att, f3: PvForecast3, i: int, tau: int, s_max: int = 6,
     return scen, weights
 
 
+def load_only_residual_scenarios(att, f3: PvForecast3, i: int, tau: int,
+                                 known_pv: np.ndarray, s_max: int = 6,
+                                 load_lam: float = 1.0,
+                                 fc_kwargs: dict | None = None,
+                                 forecast_source: str = "legacy"):
+    """在光伏曲线已知时，仅保留因果负荷预测误差的场景。
+
+    用于评估额外光伏信息的价值：负荷预测方法和历史误差保持不变，不能把
+    当日真实负荷同时泄露给调整模型。
+    """
+    j0 = tau // 10
+    if np.asarray(known_pv).shape != (q2.N - j0,):
+        raise ValueError("known_pv must cover the complete remaining horizon")
+    l_fc = forecast_full(att, f3, i, 0, load_lam, fc_kwargs,
+                         forecast_source=forecast_source)[0][j0:]
+    idx = q2.history_index(att, i)
+    residuals = []
+    for j in idx:
+        hist_fc = forecast_full(att, f3, j, 0, load_lam, fc_kwargs,
+                                forecast_source=forecast_source)[0][j0:]
+        residuals.append(att.load_kwh[j][j0:] - hist_fc)
+    if not residuals:
+        return [l_fc - known_pv], np.array([1.0])
+    residuals = np.asarray(residuals)
+    order = np.argsort(residuals.sum(axis=1), kind="stable")
+    if len(order) > s_max:
+        selected = order[np.rint(np.linspace(0, len(order) - 1, s_max)).astype(int)]
+    else:
+        selected = order
+    scenarios = [np.maximum(0.0, l_fc + residuals[s]) - known_pv for s in selected]
+    return scenarios, np.full(len(scenarios), 1.0 / len(scenarios))
+
+
 # --------------------------------------------------------------------------- 费用
 def fee_seg(price, q_plan, q_adj) -> float:
     up = np.maximum(0.0, q_adj - q_plan)
@@ -265,21 +298,27 @@ def expected_emergency(price, q, c, d, scen_net, weights, P: "Params" = DEFAULT_
 def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
            plan_pen=None, P: "Params" = DEFAULT_PARAMS,
            terminal_min=None, terminal_max=None, terminal_value: float = 0.0):
-    """剩余时段最优 (q,c,d,w,e)。
+    """剩余时段的场景风险线性规划。
 
     mode="plan"  : 0:00 制定计划（无调整费，q 自由）
     mode="adjust": 调整，与 q_plan 的差额按 50%/150% 计费
     plan_pen     : 仅 mode="plan" 生效，各时段缺口的计价倍率（默认 5 倍紧急电价）。
                    对后续节点可调整的时段，用较低的倍率即可反映“稍后可按 1.5 倍调整”
                    的期权价值，避免 0:00 过度囤电。
-    返回 q,c,d,w,e,fee,exp_emg_cost
+    每个场景分别以紧急购电 ``h`` 和剩余能量 ``r`` 满足
+    ``q + d - c + h - r = net``。这样计划购电量不会再被点预测平衡式
+    额外钉住，历史残差显示高需求风险时可以提前备购。
+
+    返回 q,c,d,w,e,fee,exp_emg_cost；其中 w 为场景剩余能量的加权均值，
+    仅用于诊断，不进入储能状态方程。
     """
     m = len(l_fc)
-    idx_q, idx_c, idx_d, idx_w = 0, m, 2 * m, 3 * m
-    idx_up, idx_dn, idx_e = 4 * m, 5 * m, 6 * m
-    base = 7 * m + 1
+    idx_q, idx_c, idx_d = 0, m, 2 * m
+    idx_up, idx_dn, idx_e = 3 * m, 4 * m, 5 * m
+    base = 6 * m + 1
     S = len(scen_net)
-    nv = base + S * m
+    idx_h, idx_r = base, base + S * m
+    nv = base + 2 * S * m
 
     obj = np.zeros(nv)
     if mode == "plan":
@@ -293,44 +332,40 @@ def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
     if mode == "plan" and plan_pen is not None:
         pen = np.asarray(plan_pen, dtype=float)[:m]
     for k, w in enumerate(weights):
-        obj[base + k * m: base + (k + 1) * m] = w * pen * price
+        obj[idx_h + k * m: idx_h + (k + 1) * m] = w * pen * price
     obj[idx_e + m] -= float(terminal_value)
 
-    A_eq = np.zeros((3 * m, nv))
-    b_eq = np.zeros(3 * m)
+    n_adjust = 0 if mode == "plan" else m
+    scenario_row0 = m + n_adjust
+    A_eq = np.zeros((scenario_row0 + S * m, nv))
+    b_eq = np.zeros(scenario_row0 + S * m)
     for t in range(m):
-        A_eq[t, idx_q + t] = 1.0                  # q + v + d = l + c + w
-        A_eq[t, idx_c + t] = -1.0
-        A_eq[t, idx_d + t] = 1.0
-        A_eq[t, idx_w + t] = -1.0
-        b_eq[t] = l_fc[t] - v_fc[t]
-
-        A_eq[m + t, idx_e + t] = -1.0             # e[t+1] = e[t] + ηc c - d/ηd
-        A_eq[m + t, idx_e + t + 1] = 1.0
-        A_eq[m + t, idx_c + t] = -P.eta
-        A_eq[m + t, idx_d + t] = 1.0 / P.eta
+        A_eq[t, idx_e + t] = -1.0                 # e[t+1] = e[t] + ηc c - d/ηd
+        A_eq[t, idx_e + t + 1] = 1.0
+        A_eq[t, idx_c + t] = -P.eta
+        A_eq[t, idx_d + t] = 1.0 / P.eta
 
         if mode != "plan":
-            A_eq[2 * m + t, idx_q + t] = 1.0      # q - up + dn = q_plan
-            A_eq[2 * m + t, idx_up + t] = -1.0
-            A_eq[2 * m + t, idx_dn + t] = 1.0
-            b_eq[2 * m + t] = q_plan[t]
+            A_eq[m + t, idx_q + t] = 1.0          # q - up + dn = q_plan
+            A_eq[m + t, idx_up + t] = -1.0
+            A_eq[m + t, idx_dn + t] = 1.0
+            b_eq[m + t] = q_plan[t]
 
-    A_ub = np.zeros((S * m, nv))
-    b_ub = np.zeros(S * m)
     for k in range(S):
         for t in range(m):
-            r = k * m + t
-            A_ub[r, base + r] = -1.0              # q - c + d + emg >= net
-            A_ub[r, idx_q + t] = -1.0
-            A_ub[r, idx_c + t] = 1.0              # 充电消耗电能
-            A_ub[r, idx_d + t] = -1.0             # 放电提供电能
-            b_ub[r] = -scen_net[k][t]
+            row = scenario_row0 + k * m + t
+            A_eq[row, idx_q + t] = 1.0
+            A_eq[row, idx_c + t] = -1.0
+            A_eq[row, idx_d + t] = 1.0
+            A_eq[row, idx_h + k * m + t] = 1.0
+            A_eq[row, idx_r + k * m + t] = -1.0
+            b_eq[row] = scen_net[k][t]
 
     zero = (0.0, 0.0)
     bounds = ([(0, None)] * m + [(0, P.c_max)] * m + [(0, P.c_max)] * m
-              + [(0.0, float(v)) for v in v_fc] + [(0, None)] * m + [(0, None)] * m
-              + [(P.e_min, P.e_max)] * (m + 1) + [(0, None)] * (S * m))
+              + [(0, None)] * m + [(0, None)] * m
+              + [(P.e_min, P.e_max)] * (m + 1)
+              + [(0, None)] * (2 * S * m))
     if mode == "plan":
         for t in range(m):                        # 计划模式下禁用 up/dn
             bounds[idx_up + t] = zero
@@ -340,13 +375,14 @@ def seg_lp(price, q_plan, l_fc, v_fc, e_start, scen_net, weights, mode="adjust",
     hi = lo if terminal_max is None else float(terminal_max)
     bounds[idx_e + m] = (lo, hi)
 
-    res = linprog(obj, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds,
-                  method="highs")
+    res = linprog(obj, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method="highs")
     if not res.success:
         raise RuntimeError("节点 LP 求解失败：" + str(res.message))
     x = res.x
     q, c, d = x[idx_q:idx_q + m], x[idx_c:idx_c + m], x[idx_d:idx_d + m]
-    w, e = x[idx_w:idx_w + m], x[idx_e:idx_e + m + 1]
+    e = x[idx_e:idx_e + m + 1]
+    spill = x[idx_r:idx_r + S * m].reshape(S, m)
+    w = np.average(spill, axis=0, weights=np.asarray(weights, dtype=float))
     qp = np.zeros(m) if mode == "plan" else np.asarray(q_plan, dtype=float)
     fee = fee_seg(price, qp, q) if mode == "adjust" else float((price * q).sum())
     return {"q": q, "c": c, "d": d, "w": w, "e": e, "fee": fee,

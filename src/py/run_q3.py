@@ -1,4 +1,4 @@
-"""问题三全年实验：三种调整策略对比 + 各调整节点的边际价值。"""
+"""问题三评价期实验：三种调整策略对比与各调整节点的边际价值。"""
 from __future__ import annotations
 
 import argparse
@@ -27,6 +27,7 @@ def main() -> None:
     ap.add_argument("--s-max", type=int, default=6)
     ap.add_argument("--policies", type=str, default="none,fixed,selective")
     ap.add_argument("--node-sets", type=str, default="", help="例如 0,6,6+12,6+12+18")
+    ap.add_argument("--pv-interpolation", choices=("step", "linear"), default="step")
     args = ap.parse_args()
 
     root = q2.project_root()
@@ -40,7 +41,7 @@ def main() -> None:
         lines.append(str(s))
         print(s, flush=True)
 
-    emit("问题三全年实验（滚动调整购电策略）")
+    emit("问题三评价期实验（滚动调整购电策略）")
     emit(f"结果窗口 {att.dates[win[0]]} ~ {att.dates[win[-1]]}，共 {len(win)} 天")
     emit("")
 
@@ -60,7 +61,8 @@ def main() -> None:
         for k, i in enumerate(win):
             if k % 40 == 0:
                 print(f"  [{pol}] {k}/{len(win)} ...", flush=True)
-            r = q3.simulate_day(att, f3, att.price, i, s_max=args.s_max, policy=pol)
+            r = q3.simulate_day(att, f3, att.price, i, s_max=args.s_max, policy=pol,
+                                pv_interpolation=args.pv_interpolation)
             tot["plan"] += r["plan_cost"]
             tot["fee"] += r["fee"]
             tot["emg"] += r["emg_cost"]
@@ -122,7 +124,8 @@ def main() -> None:
             emg = 0.0
             for i in win:
                 r = q3.simulate_day(att, f3, att.price, i, s_max=args.s_max,
-                                    policy="fixed", node_subset=NODE_SETS[key])
+                                    policy="fixed", node_subset=NODE_SETS[key],
+                                    pv_interpolation=args.pv_interpolation)
                 tot += r["total"]
                 emg += r["emg_kwh"]
             if base is None:
@@ -135,7 +138,8 @@ def main() -> None:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines), encoding="utf-8")
-    json_path = out.with_name("q3_summary.json")
+    json_path = (root / "src" / "outputs" / "q3_summary.json"
+                 if args.out is None else out.with_suffix(".json"))
     json_path.write_text(json.dumps(json_out, ensure_ascii=False, indent=1), encoding="utf-8")
     np.savez_compressed(root / "src" / "outputs" / "q3_arrays.npz",
                         **{f"{p}_{k}": v for p, d in store.items() for k, v in d.items()})

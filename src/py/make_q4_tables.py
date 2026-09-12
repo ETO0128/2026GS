@@ -41,7 +41,7 @@ def tex_table(sum: dict) -> str:
     base = v["fixed_price"]["total"]
     out = ["% 由 src/py/make_q4_tables.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题四 4-3：波动电价下滚动调整策略的全年费用（2025-02-01--12-31，共 334 天）}",
+           r"  \caption{波动电价下滚动调整策略在 2--12 月评价期的费用}",
            r"  \label{tab:q4-3}", r"  \small",
            r"  \begin{tabular}{lrrrrr}", r"    \toprule",
            r"    方案 & 结算购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 & 调整次数 \\",
@@ -96,7 +96,7 @@ def tex_table42(sum42: dict, innovation: dict | None = None) -> str:
     base = v["fixed_price"]["total"]
     out = ["% 由 src/py/make_q4_tables.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题四 4-2：波动电价下重做问题二的全年费用（2025-02-01--12-31，共 334 天）}",
+           r"  \caption{波动电价下日前方案在 2--12 月评价期的费用}",
            r"  \label{tab:q4-2}", r"  \small",
            r"  \resizebox{\textwidth}{!}{\begin{tabular}{lrrrr}", r"    \toprule",
            r"    方案 & 计划购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 \\",

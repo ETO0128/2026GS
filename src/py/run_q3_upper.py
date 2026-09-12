@@ -41,7 +41,7 @@ CASES = [
     ("18:00", 1080, "real"),
     ("21:00", 1260, "perfect"),
 ]
-KIND_NAME = {"real": "附件3 实际预报", "perfect": "完美预报（价值上界）"}
+KIND_NAME = {"real": "附件3 实际光伏预报", "perfect": "完美光伏预报（负荷预测不变）"}
 
 
 def main() -> None:
@@ -65,7 +65,7 @@ def main() -> None:
         lines.append(str(s))
         print(s, flush=True)
 
-    emit("问题三补充实验：其他时刻光伏预报的价值")
+    emit("问题三补充实验：固定负荷信息后的其他时刻光伏预报价值")
     emit(f"结果窗口 {att.dates[win[0]]} ~ {att.dates[win[-1]]}，共 {len(win)} 天")
     emit("")
 
@@ -107,8 +107,11 @@ def main() -> None:
             c_cur = plan["c"].copy()
             d_cur = plan["d"].copy()
             if kind == "perfect":
-                l_fc, v_fc = att.load_kwh[i], att.pv_kwh[i]
-                scen, w = [net_act[i][j0:]], np.array([1.0])
+                # 只提高光伏信息：负荷仍使用决策日前可得的因果预测及其历史残差。
+                l_fc = q3.forecast_full(att, f3, i, 0)[0]
+                v_fc = att.pv_kwh[i]
+                scen, w = q3.load_only_residual_scenarios(
+                    att, f3, i, minute, v_fc[j0:], args.s_max)
             else:
                 l_fc, v_fc = q3.forecast_full(att, f3, i, minute)
                 scen, w = q3.residual_scenarios(att, f3, i, minute, args.s_max)
@@ -129,7 +132,7 @@ def main() -> None:
 
     emit("")
     emit("结论")
-    emit("  1) 白天中间时刻（9:00、15:00）仍有可观价值，即使按完美预报给出的上界衡量；")
+    emit("  1) 本表是相对仅 0:00 计划的单节点上界；已有节点后的条件边际价值需另行比较；")
     emit("  2) 日落后（21:00）的价值上界已明显收缩——剩余可调整时段短且无光照，")
     emit("     此时再投入一次预报通讯/计算几乎没有意义；")
     emit("  3) 实际可得的 18:00 预报（附件3）价值接近于零（见 run_q3.py 的节点累积实验），")
@@ -139,7 +142,9 @@ def main() -> None:
     out_path = args.out or root / "src" / "outputs" / "q3_upper_report.txt"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines), encoding="utf-8")
-    (out_path.parent / "q3_upper.json").write_text(
+    json_path = (out_path.parent / "q3_upper.json" if args.out is None
+                 else out_path.with_suffix(".json"))
+    json_path.write_text(
         json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print("done")
 

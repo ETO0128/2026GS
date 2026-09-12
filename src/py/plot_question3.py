@@ -4,7 +4,7 @@
     python src/py/plot_question3.py
 
 输出（同时保存 pdf 与 png）：
-    src/tex/figure/q3_forecast_value.pdf 其他时刻预报的价值（上界）与节点累积价值
+    src/tex/figure/q3_forecast_value.pdf 新增光伏预报的条件价值与节点累积价值
     src/tex/figure/q3_adjust_day.pdf     指定日期的计划购电量 vs 调整购电量
 """
 from __future__ import annotations
@@ -35,24 +35,23 @@ plt.rcParams.update({
 BLUE, RED, GRAY, ORANGE = "#2F5597", "#C00000", "#7F7F7F", "#C65911"
 
 
-def figure_forecast_value(upper: dict, summary: dict, fig_dir: Path) -> None:
-    cases = upper["cases"]
-    names = [c["name"] for c in cases]
-    gains = [c["gain"] for c in cases]
-    colors = [ORANGE if c["kind"] == "perfect" else BLUE for c in cases]
+def figure_forecast_value(incremental: dict, summary: dict, fig_dir: Path) -> None:
+    case_keys = ["plus_0300", "plus_0900", "plus_1500", "plus_2100"]
+    cases = [incremental[key] for key in case_keys]
+    names = ["3:00", "9:00", "15:00", "21:00"]
+    gains = [c["saving_vs_existing_yuan"] / 1e4 for c in cases]
     fig, axes = plt.subplots(1, 2, figsize=(7.6, 3.3), constrained_layout=True)
 
     ax = axes[0]
-    ax.bar(range(len(cases)), gains, color=colors, width=0.62)
+    ax.bar(range(len(cases)), gains, color=BLUE, width=0.62)
     ax.set_xticks(range(len(cases)))
     ax.set_xticklabels(names, fontsize=8.5)
     ax.axhline(0, color="#666666", linewidth=0.6)
     for k, g in enumerate(gains):
-        ax.text(k, g + max(gains) * 0.02, f"{g/1e4:.1f}", ha="center", fontsize=7.5)
+        ax.text(k, g + max(gains) * 0.02, f"{g:.2f}", ha="center", fontsize=7.5)
     ax.set_xlabel("预报发布时刻 $\\tau$")
-    ax.set_ylabel("全年节省/元")
-    ax.set_title("单独引入一个 $\\tau$ 时刻预报的全年价值\n"
-                 "橙色=完美预报上界，蓝色=附件3 实际预报", fontsize=9)
+    ax.set_ylabel("条件边际节省/万元")
+    ax.set_title("已有 6:00/12:00/18:00 预报时\n新增一次完美光伏预报的条件价值", fontsize=9)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.5)
 
     ax = axes[1]
@@ -138,16 +137,16 @@ def main() -> None:
     fig_dir.mkdir(parents=True, exist_ok=True)
     outs = root / "src" / "outputs"
 
-    upper_path = outs / "q3_upper.json"
+    upper_path = outs / "q3_incremental_pv_experiment.json"
     summary_path = outs / "q3_summary.json"
     if not upper_path.exists() or not summary_path.exists():
-        raise SystemExit(f"缺少 {upper_path} 或 {summary_path}，请先运行 run_q3.py 与 run_q3_upper.py")
-    upper = json.loads(upper_path.read_text(encoding="utf-8"))
+        raise SystemExit(f"缺少 {upper_path} 或 {summary_path}，请先运行问题三正式计算与增量信息实验")
+    incremental = json.loads(upper_path.read_text(encoding="utf-8"))
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     att = q.Attachment(root)
     f3 = q3.PvForecast3(root)
-    figure_forecast_value(upper, summary, fig_dir)
+    figure_forecast_value(incremental, summary, fig_dir)
     figure_adjust_day(att, f3, fig_dir, dt.date.fromisoformat(args.day), args.policy)
     print(f"图片已写入 {fig_dir}")
 

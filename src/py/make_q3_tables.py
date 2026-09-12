@@ -43,7 +43,7 @@ def tex_strategy(summary: dict) -> str:
     pol = summary["policies"]
     out = ["% 由 src/py/make_q3_tables.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题三三种滚动调整策略的全年费用对比（2025 年 2 月 1 日--12 月 31 日，共 334 天）}",
+           r"  \caption{问题三三种滚动调整策略在 2--12 月评价期的费用对比}",
            r"  \label{tab:q3-strategy}", r"  \small",
            r"  \begin{tabular}{lrrrrr}", r"    \toprule",
            r"    策略 & 结算购电费/元 & 紧急购电费/元 & 合计/元 & 调整次数 & 累计调整量/kWh \\",
@@ -64,7 +64,7 @@ def tex_strategy(summary: dict) -> str:
 def tex_node(summary: dict) -> str:
     pol = summary["policies"]
     out = [r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题三各预报节点的期望边际价值（全年累计，期望值在模型自身的场景测度下计算）}",
+           r"  \caption{问题三各预报节点的期望边际价值}",
            r"  \label{tab:q3-node}", r"  \small",
            r"  \begin{tabular}{lrrrrr}", r"    \toprule",
            r"    预报时刻 & 期望费用$J_{\text{不调整}}$/元 & 期望费用$J_{\text{调整}}$/元 & "
@@ -85,7 +85,7 @@ def tex_accum(summary: dict) -> str:
     label = {"0": "仅 0:00", "6": "0:00, 6:00", "6+12": "0:00, 6:00, 12:00",
              "6+12+18": "0:00, 6:00, 12:00, 18:00"}
     out = [r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题三逐次增加可用预报时刻的全年费用（固定调整策略，用以回答“是否需要其他时刻的预报”）}",
+           r"  \caption{问题三逐次增加预报时刻的评价期费用}",
            r"  \label{tab:q3-accum}", r"  \small",
            r"  \begin{tabular}{lrrrr}", r"    \toprule",
            r"    可用预报时刻 & 全年合计/元 & 相对仅 0:00 降低/元 & 降低占比 & 紧急购电量/kWh \\",
@@ -99,9 +99,9 @@ def tex_accum(summary: dict) -> str:
 
 
 def tex_forecast_value(upper: dict) -> str:
-    kind = {"real": "附件3 实际预报", "perfect": "完美预报（上界）"}
+    kind = {"real": "附件3 实际预报", "perfect": "完美光伏预报，负荷预测不变"}
     out = [r"\begin{table}[H]", r"  \centering",
-           r"  \caption{其他时刻光伏预报的全年价值：仅在 0:00 定计划后，单独引入一个 $\tau$ 时刻预报并调整一次}",
+           r"  \caption{仅增加一个预报时刻时的评价期信息价值}",
            r"  \label{tab:q3-fv}", r"  \small",
            r"  \begin{tabular}{llrrr}", r"    \toprule",
            r"    发布时刻 $\tau$ & 信息类型 & 全年合计/元 & 相对基线节省/元 & 节省占比 \\",
@@ -130,7 +130,7 @@ def collect_date(att: q2.Attachment, f3: q3.PvForecast3, day: dt.date, policy: s
 def tex_dates(rows: list[dict], policy: str) -> str:
     head = " & ".join(f"{d['date'].month}月{d['date'].day}日" for d in rows)
     out = [r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题三指定日期的滚动调整结果（择优调整策略，与 \texttt{result3.xlsx} 一致）}",
+           r"  \caption{问题三指定日期的滚动调整结果}",
            r"  \label{tab:q3-dates}", r"  \small",
            r"  \begin{tabular}{lrrrr}", r"    \toprule", f"    项目 & {head} \\\\", r"    \midrule"]
     items = [("计划购电量/kWh", "plan", DEC), ("调整购电量/kWh", "adj", DEC),

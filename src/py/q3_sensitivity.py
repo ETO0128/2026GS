@@ -2,8 +2,8 @@
 
 按“一次一个因素”方式扫描（口径 A、selective 策略、全年 334 天），结果写入
 ``src/outputs/q3_sens.json`` 缓存，便于分批运行；每次运行都会重新生成
-``src/outputs/q3_sensitivity_report.txt``、``src/tex/q3_sensitivity.tex``
-与插图 ``src/tex/figure/q3_sensitivity.pdf``。
+``src/outputs/q3_sensitivity_report.txt`` 与 ``src/tex/q3_sensitivity.tex``；插图由
+``plot_q3_sensitivity.py`` 根据同一缓存生成。
 
 用法：
     python src/py/q3_sensitivity.py --factor cap --levels 0.6,0.8,1.2,1.5
@@ -48,23 +48,30 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--factor", default=None)
     ap.add_argument("--levels", default="")
+    ap.add_argument("--representative", action="store_true",
+                    help="清空旧缓存并重算正文采用的基准与代表性水平")
     args = ap.parse_args()
 
     root = q2.project_root()
     att = q2.Attachment(root)
     f3 = q3.PvForecast3(root)
     cache_path = root / "src" / "outputs" / "q3_sens.json"
-    res: dict = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+    res: dict = {} if args.representative else (
+        json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {})
 
     if "base" not in res:
         print("[base] 计算中 ...", flush=True)
         res["base"] = run_year(att, f3)
         cache_path.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    if args.factor:
-        fac = args.factor
+    scans = ({"cap": [0.6, 1.2], "pow": [0.5, 1.5], "eta": [0.75, 0.95],
+              "e0": [1200, 10800], "emg": [3, 8], "fcst": [0.5, 2.0]}
+             if args.representative else
+             ({args.factor: [float(x) for x in args.levels.split(",") if x]}
+              if args.factor else {}))
+    for fac, levels in scans.items():
         res.setdefault(fac, {})
-        for s in [float(x) for x in args.levels.split(",") if x]:
+        for s in levels:
             key = f"{s:g}"
             if key in res[fac]:
                 continue
@@ -77,12 +84,12 @@ def main() -> None:
             cache_path.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
 
     base = res["base"]["total"]
-    lines = ["问题三鲁棒性/敏感性分析（口径 A，selective 策略，全年 334 天）",
-             f"基准：全参数取题面值，全年合计 {base:,.2f} 元（紧急购电费 {res['base']['emg']:,.2f} 元）",
+    lines = ["问题三鲁棒性/敏感性分析（口径 A，selective 策略，2--12 月评价期 334 天）",
+             f"基准：全参数取题面值，评价期合计 {base:,.2f} 元（紧急购电费 {res['base']['emg']:,.2f} 元）",
              ""]
     tex = ["% 由 src/py/q3_sensitivity.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题三关键参数的灵敏度（口径 A、择优调整策略、全年 334 天）}",
+           r"  \caption{问题三关键参数在 2--12 月评价期的灵敏度}",
            r"  \label{tab:q3-sens}", r"  \small",
            r"  \begin{tabular}{llrrr}", r"    \toprule",
            r"    参数 & 水平 & 全年费用/元 & 紧急购电费/元 & 相对基准 \\",

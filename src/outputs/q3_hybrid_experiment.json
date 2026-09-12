@@ -9,39 +9,41 @@
     "adjusted_days": 0
   },
   "lcy_baseline": {
-    "total_yuan": 15773614.718738494,
-    "contract_fee_yuan": 14021846.767125167,
-    "emergency_cost_yuan": 1751767.9516133287,
-    "emergency_kwh": 465083.5975687563,
-    "adjustments": 598,
-    "adjusted_days": 323
+    "total_yuan": 15682660.27225786,
+    "contract_fee_yuan": 13955307.571532963,
+    "emergency_cost_yuan": 1727352.700724899,
+    "emergency_kwh": 448753.40616417635,
+    "adjustments": 898,
+    "adjusted_days": 334
   },
   "q2_contract_plus_lcy_rolling": {
-    "total_yuan": 16809709.0389799,
-    "contract_fee_yuan": 15446988.326018285,
-    "emergency_cost_yuan": 1362720.7129616153,
-    "emergency_kwh": 330146.4570865394,
-    "adjustments": 385,
-    "adjusted_days": 210
+    "total_yuan": 16657521.37954262,
+    "contract_fee_yuan": 15432924.238074368,
+    "emergency_cost_yuan": 1224597.141468253,
+    "emergency_kwh": 305630.0944695092,
+    "adjustments": 894,
+    "adjusted_days": 334
   },
-  "hybrid_saving_vs_q2_yuan": 52476.84398176521,
-  "hybrid_difference_vs_lcy_yuan": 1036094.3202414047,
+  "hybrid_saving_vs_q2_yuan": 204664.5034190435,
+  "hybrid_difference_vs_lcy_yuan": 974861.1072847601,
   "bootstrap_hybrid_vs_q2": {
-    "observed_saving_yuan": 52476.84398176221,
+    "observed_saving_yuan": 204664.50341904265,
+    "circular_block_days": 7,
     "ci95_yuan": [
-      -151541.3446700742,
-      254367.02431632738
+      -65718.97500538775,
+      451520.84503097663
     ],
-    "probability_saving_positive": 0.6852,
-    "improved_days": 86
+    "probability_saving_positive": 0.9312,
+    "improved_days": 150
   },
   "bootstrap_lcy_vs_hybrid": {
-    "observed_saving_yuan": 1036094.3202414055,
+    "observed_saving_yuan": 974861.1072847587,
+    "circular_block_days": 7,
     "ci95_yuan": [
-      750538.3894893099,
-      1333140.7593701351
+      695113.5827585224,
+      1199010.3523923259
     ],
     "probability_saving_positive": 1.0,
-    "improved_days": 197
+    "improved_days": 188
   }
 }
