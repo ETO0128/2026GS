@@ -41,7 +41,7 @@
 12:00 的信息价值最显著。最后，在逐日波动电价下坚持“预测价格决策、实际价格结算”的
 因果边界，问题四对应问题二、三的费用分别为 \num{17256638.87} 元和
 \num{16616064.63} 元；进一步以前瞻两日的滚动时域替代固定日末荷电状态
-（state of charge，SOC）约束，4-2 费用降至
+（state of charge，SOC）约束，问题四日前方案的费用降至
 \num{17233738.33} 元。完美当日电价信息仅能降低不足 0.9\% 的费用，表明源荷预测
 误差比价格不确定性更值得优先控制。全年单因素敏感性分析进一步显示，储能容量、单向
 充放电效率和残差场景幅度是影响费用的关键因素，而额定功率继续扩大的边际收益有限。
@@ -117,7 +117,7 @@
 \subsection{问题四分析}
 
 问题四在问题二、三的基础上，把每日相同的电价替换为逐日波动的电价（附件4）。为保持
-跨问可比性，4-2 复用问题二的风险修正确定性计划，4-3 复用问题三的滚动优化，并为两者
+跨问可比性，日前方案复用问题二的风险修正计划，日内方案复用问题三的滚动优化，并为两者
 增加同一个严格因果的价格预测器；完全信息优化结果只作为费用下界，用于衡量因果策略
 仍可改进的空间。
 这带来两个新问题：其一，电价作为决策的“信号”，其不确定性直接影响“何时购电、
@@ -139,12 +139,18 @@
   充放电循环的往返效率为 $0.9\times0.9=0.81$。效率仅计入储能状态方程，不重复计入
   母线能量平衡。
   \item 除储能充放电损耗外，忽略微网内部线路损耗、储能自放电、温度效应和功率爬坡
-  过程。问题一只有一天且题目未给出相应参数，该简化可以避免引入缺乏依据的经验常数。
-  \item 问题一暂不计电池寿命衰减成本。为排除线性规划的退化解，在最低购电费不变的
+  过程；各问均不计电池寿命衰减成本。题目未给出相应参数，该简化可避免引入缺乏依据的
+  经验常数。
+  \item 历史期与评价期内不存在导致负荷、光伏或储能运行机制突变的极端天气、设备故障
+  和长期停电。历史残差可用于描述评价期的不确定性，但仅在题设年度和数据范围内成立。
+  \item 日前及日内决策只使用决策时刻已经发布的数据；当天真实负荷、真实光伏和真实
+  波动电价仅用于事后结算。完全信息方案不参与正式决策，只作为费用下界或信息价值对照。
+  \item 为排除线性规划的退化解，在最低购电费不变的
   条件下，以充放电总量最小作为第二级优化目标。
-  \item 储能以 24 小时为一个运行周期，0:00 和 24:00 的储电量均为
-  \SI{6000}{kWh}。附件中标记为 ``0:00+1'' 的周期数据在计算时旋转到序列首端，求解后
-  再按结果模板的原顺序写回。
+  \item 问题一采用 $e_0=e_T=\SI{6000}{kWh}$；问题二以相邻日期连续传递的日初状态为
+  初值，并设置 $e_T\ge\SI{6000}{kWh}$；问题三采用日周期边界。问题四的基准方案继承
+  相应边界，跨日前瞻方案则允许中间日末状态动态变化，仅约束前瞻末端储备。附件中
+  ``0:00+1'' 的周期端点在计算时移至序列首端，输出时再恢复结果模板顺序。
 \end{enumerate}
 
 \section{符号说明}
@@ -158,14 +164,22 @@
     符号 & 含义 & 单位 \\
     \midrule
     $t$ & 十分钟决策时段索引 & -- \\
+    $d$ & 日期索引 & -- \\
+    $\tau$ & 日内预测发布与调整时刻 & min \\
     $p_t$ & 时段 $t$ 的外网电价 & 元/kWh \\
     $L_t$ & 时段 $t$ 的小区负荷功率 & \si{kW} \\
     $P_t^{\mathrm{pv}}$ & 时段 $t$ 的光伏预测功率 & \si{kW} \\
     $g_t$ & 外部电网计划购电量 & \si{kWh} \\
+    $q_{d,t}$ & 风险修正后的净需求电量 & \si{kWh} \\
     $c_t$ & 储能充电量 & \si{kWh} \\
     $d_t$ & 储能放电量 & \si{kWh} \\
     $e_t$ & 储能系统的储电量 & \si{kWh} \\
     $w_t$ & 无法消纳的弃光量 & \si{kWh} \\
+    $D_{d,t}$ & 日期 $d$、时段 $t$ 的净需求电量 & \si{kWh} \\
+    $h_{d,t}$ & 紧急购电量 & \si{kWh} \\
+    $\mathcal F_{d,\tau}$ & 日期 $d$ 在时刻 $\tau$ 可用的信息集 & -- \\
+    $\pi_{d,j}$ & 历史残差场景 $j$ 的归一化概率 & -- \\
+    $\lambda$ & 历史样本的时间指数衰减系数 & -- \\
     $\eta_c,\eta_d$ & 储能充电效率和放电效率 & -- \\
     $\Delta t$ & 单个决策时段的长度 & \si{h} \\
     \bottomrule
@@ -264,7 +278,7 @@ $\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95$，此后不再利�
 
 由于题目未说明制定计划时是否已知当天的全部电价，问题四同时给出两种口径：一是把
 当天 144 段电价视为已知（与问题一至问题三“电价已知”的处理一致）；二是仅用前一日
-电价或逐时段均值曲线作为因果价格预测。两种口径的对照结果见第~\ref{sec:q4} 节。
+电价或逐时段均值曲线作为因果价格预测。两种信息口径的结果将在问题四中统一比较。
 
 \section{问题一的确定性优化模型}
 
@@ -760,13 +774,13 @@ $[-\num{151541.34},\num{254367.02}]$ 元，尚不足以认定为稳定改善。�
 
 在节点 $\tau$，已执行时段 $[0,\tau)$ 的购电量与充放电量已经发生、不可更改，储电量
 $e_{\tau/10}$ 由已执行轨迹唯一确定；模型只需对剩余时段 $[\,\tau,24{:}00)$ 重新优化
-$(q_j,c_j,d_j,w_j,e_j)$。设 0:00 制定的计划购电量为 $q^{\mathrm{plan}}_j$、滚动调整后的
-最终购电量为 $q^{\mathrm{adj}}_j$，则按题面规则，时段 $j$ 的结算购电费为
+$(g_j,c_j,d_j,w_j,e_j)$。设 0:00 制定的计划购电量为 $g^{\mathrm{plan}}_j$、滚动调整后的
+最终购电量为 $g^{\mathrm{adj}}_j$，则按题面规则，时段 $j$ 的结算购电费为
 
 \begin{equation}
-  \mathrm{fee}_j=p_j\min\big(q^{\mathrm{plan}}_j,q^{\mathrm{adj}}_j\big)
-  +0.5\,p_j\big(q^{\mathrm{plan}}_j-q^{\mathrm{adj}}_j\big)^{+}
-  +1.5\,p_j\big(q^{\mathrm{adj}}_j-q^{\mathrm{plan}}_j\big)^{+}.
+  \mathrm{fee}_j=p_j\min\big(g^{\mathrm{plan}}_j,g^{\mathrm{adj}}_j\big)
+  +0.5\,p_j\big(g^{\mathrm{plan}}_j-g^{\mathrm{adj}}_j\big)^{+}
+  +1.5\,p_j\big(g^{\mathrm{adj}}_j-g^{\mathrm{plan}}_j\big)^{+}.
   \label{eq:q3-fee}
 \end{equation}
 
@@ -774,8 +788,8 @@ $(q_j,c_j,d_j,w_j,e_j)$。设 0:00 制定的计划购电量为 $q^{\mathrm{plan}
 高于调整购电量的部分，要按交易时刻电价的 50\%\ 支付违约费；向上调整的部分按 1.5 倍
 电价计费。因此“少买”和“多买”都有代价，只是代价不同，滚动调整必须在两者之间权衡。
 \texttt{result3.xlsx} 只提供“计划购电量”与“调整购电量”两张矩阵，其差额正是按式
-\eqref{eq:q3-fee} 结算的。\textbf{其二}，当 $q^{\mathrm{adj}}_j=q^{\mathrm{plan}}_j$ 时
-单时段费用退化为 $\mathrm{fee}_j=p_jq^{\mathrm{plan}}_j$；对全部时段求和即为不调整时的
+\eqref{eq:q3-fee} 结算的。\textbf{其二}，当 $g^{\mathrm{adj}}_j=g^{\mathrm{plan}}_j$ 时
+单时段费用退化为 $\mathrm{fee}_j=p_jg^{\mathrm{plan}}_j$；对全部时段求和即为不调整时的
 购电费。两种计算方式可互相校验（数值实验的偏差为 $4.55\times10^{-13}$ 元）。
 
 节点上的调整决策是一个规模很小的线性规划：以“调整费 $+$ 期望紧急购电费”为目标，
@@ -839,7 +853,7 @@ Ghadimi 和 Powell 进一步指出，储能策略不仅取决于某一次预测�
 % 由 src/py/make_q3_tables.py 自动生成，请勿手工修改
 \begin{table}[H]
   \centering
-  \caption{问题三三种滚动调整策略的全年费用对比（2025 年 2 月 1 日--12 月 31 日，共 334 天）}
+  \caption{问题三三种滚动调整策略的全年费用对比}
   \label{tab:q3-strategy}
   \small
   \begin{tabular}{lrrrrr}
@@ -858,7 +872,7 @@ Ghadimi 和 Powell 进一步指出，储能策略不仅取决于某一次预测�
 
 \begin{table}[H]
   \centering
-  \caption{问题三逐次增加可用预报时刻的全年费用（固定调整策略，用以回答“是否需要其他时刻的预报”）}
+  \caption{固定调整策略下逐次增加预报时刻的全年费用}
   \label{tab:q3-accum}
   \small
   \begin{tabular}{lrrrr}
@@ -879,7 +893,7 @@ Ghadimi 和 Powell 进一步指出，储能策略不仅取决于某一次预测�
 
 \begin{table}[H]
   \centering
-  \caption{问题三指定日期的滚动调整结果（择优调整策略，与 \texttt{result3.xlsx} 一致）}
+  \caption{择优调整策略在指定日期的滚动调整结果}
   \label{tab:q3-dates}
   \small
   \begin{tabular}{lrrrr}
@@ -934,31 +948,31 @@ Ghadimi 和 Powell 进一步指出，储能策略不仅取决于某一次预测�
 
 \subsection{因果日前计划与滚动时域表述}
 
-问题 4-2 在日前预测信息下制定全天计划，并在真实源荷实现后通过紧急购电弥补缺口，
+问题四的日前方案在 0:00 制定全天计划，并在真实源荷实现后通过紧急购电弥补缺口，
 但正式程序并未把多个未来场景及其补救量共同放入日前目标，而是先用条件残差分位数修正
-净需求，再求解一个确定性计划，最后按真实数据独立结算。问题 4-3 在日内获得新预报后
+净需求，再求解一个确定性计划，最后按真实数据独立结算。日内方案在获得新预报后
 更新剩余计划，采用信息更新节点上的滚动时域优化；该方法冻结已执行动作并重解剩余时域
 \cite{parisio2016,silvente2015}。
 
-对 4-2，记 $\mathcal F_{d,0}$ 为第 $d$ 日 0:00 可用的信息集，$x_d=(q,c,d,e)$ 为据此
+对日前方案，记 $\mathcal F_{d,0}$ 为第 $d$ 日 0:00 可用的信息集，$x_d=(g,c^{\rm ch},c^{\rm dis},e)$ 为据此
 确定且全天固定执行的购电与储能计划，$\widetilde D_{d,t}^{(0.8)}$ 为仅由历史点预测与
 条件残差得到的 80\% 风险修正净需求。正式求解口径为
 \begin{equation}
   x_d^*=\arg\min_{x_d\in\mathcal X(E_{d,0},\widetilde D_d^{(0.8)})}
-  \sum_t \widehat p_{d,t}q_{d,t},
+  \sum_t \widehat p_{d,t}g_{d,t},
   \label{eq:q4-causal-plan}
 \end{equation}
 其中 $\widehat p_{d,t}$ 为决策日前可得的价格预测。真实源荷和价格实现后不再改变
 $x_d^*$，只按
 \begin{equation}
-  u_{d,t}=\max\!\left(D_{d,t}^{\mathrm{act}}+c_{d,t}^*-d_{d,t}^*-q_{d,t}^*,0\right),
+  u_{d,t}=\max\!\left(D_{d,t}^{\mathrm{act}}+c_{d,t}^*-d_{d,t}^*-g_{d,t}^*,0\right),
   \qquad
-  C_d^{\mathrm{act}}=\sum_t p_{d,t}^{\mathrm{act}}q_{d,t}^*
+  C_d^{\mathrm{act}}=\sum_t p_{d,t}^{\mathrm{act}}g_{d,t}^*
   +5\sum_t p_{d,t}^{\mathrm{act}}u_{d,t}
   \label{eq:q4-settlement}
 \end{equation}
 结算。因此，紧急购电是样本外执行结果而非式~\eqref{eq:q4-causal-plan} 中被显式优化的
-场景补救变量，这与正式程序的“预测--计划--结算”顺序完全一致。对 4-3，在
+场景补救变量，这与正式程序的“预测--计划--结算”顺序完全一致。对日内方案，在
 $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和当前 SOC 固定，求解
 \begin{equation}
  x^*_{d,\tau}=\arg\min_{x\in\mathcal X(E_{d,\tau})}
@@ -973,12 +987,12 @@ $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和�
 
 \subsection{波动电价下的问题二}
 
-4-2 的模型选择与信息边界已在本节开头给出。源荷预测严格复用“七日均值点预测 $+$ 80\%
+日前方案的模型选择与信息边界已在本节开头给出。源荷预测严格复用“七日均值点预测 $+$ 80\%
 条件残差分位数”，每天 0:00 只使用截至前一日已经实现的价格；正式方案以最近七日曲线
 均值预测当日电价，结算时再代入实际波动电价。
 当日电价完全已知的方案不满足这一信息边界，仅作为价格信息价值的上界。
 
-4-2 与 4-3 共用价格预测器，并只在 1 月 8--31 日完成因果校准。近七日均值的 RMSE 为
+日前方案与日内方案共用价格预测器，并只在 1 月 8--31 日完成因果校准。近七日均值的 RMSE 为
 0.1029 元/kWh，低于前一日、同星期类型、相似日衰减和扩展均值的 0.1266、0.1070、
 0.1134 和 0.1060，故在 2 月测试期前锁定；此后不再反选方法。
 
@@ -991,7 +1005,7 @@ $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和�
 % 由 src/py/make_q4_tables.py 自动生成，请勿手工修改
 \begin{table}[H]
   \centering
-  \caption{问题四 4-2：波动电价下重做问题二的全年费用（2025-02-01--12-31，共 334 天）}
+  \caption{波动电价下问题二模型的全年费用}
   \label{tab:q4-2}
   \small
   \resizebox{\textwidth}{!}{\begin{tabular}{lrrrr}
@@ -1017,7 +1031,7 @@ $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和�
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\textwidth]{figures/q4_2_cost.pdf}
-  \caption{问题四 4-2：波动电价下各方案的全年费用与完全信息下界}
+  \caption{波动电价下日前方案的全年费用与完全信息下界}
   \label{fig:q4-2}
 \end{figure}
 
@@ -1035,11 +1049,11 @@ $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和�
 价格和净需求决定的内生状态，又不读取当日真实值。次日预测方法由 1 月数据选择并在评价期
 锁定；第二日终端储备取题设基准 \SI{6000}{kWh}，且一月实验中
 \SIrange{4000}{8000}{kWh} 三种储备的费用差异仅为 $10^{-6}$ 元量级，不具有实际区分度。
-2--12 月费用为 \num{17233738.33} 元，较4-2基准降低 \num{22900.55} 元（0.133\%）；
+2--12 月费用为 \num{17233738.33} 元，较日前基准降低 \num{22900.55} 元（0.133\%）；
 334 天中 66.17\% 的日期改善，7 日移动块 Bootstrap 的全年费用差 95\% 区间为
 $[-\num{34203.77},-\num{9189.53}]$ 元，最差 5\% 日期的平均费用也由
 \num{82935.88} 元降至 \num{82875.95} 元。日末 SOC 在 1200--9450 kWh 内自适应，年末
-回到 6000 kWh，故收益并非来自期末放空。该方案作为跨日增强；原4-2仍保留为严格继承
+回到 6000 kWh，故收益并非来自期末放空。该方案作为跨日增强；原日前方案仍保留为严格继承
 问题二固定终端口径的基准。
 
 \subsection{波动电价下的问题三}
@@ -1049,10 +1063,10 @@ $[-\num{34203.77},-\num{9189.53}]$ 元，最差 5\% 日期的平均费用也由
 据此把每天的日内形态视为固定。其各日极差均值为 $1.1073$ 元/kWh，全年价格区间为
 $0.0076\sim1.7936$ 元/kWh（图~\ref{fig:q4-price}），故价格水平、峰谷幅度和局部时段均有扰动。
 
-4-3 沿用本节开头确定的滚动模型，把式~\eqref{eq:q3-fee} 与紧急购电计价中的电价
-换成逐日逐时段的波动值。其价格信息边界与 4-2 完全一致，正式方法沿用上一节在 1 月
+日内方案沿用本节开头确定的滚动模型，把式~\eqref{eq:q3-fee} 与紧急购电计价中的电价
+换成逐日逐时段的波动值。其价格信息边界与日前方案完全一致，正式方法沿用上一节在 1 月
 校准并锁定的近七日均值，以保证
-4-2 与 4-3 的差异只来自是否进行日内滚动调整。除近七日均值正式方案外，设置历史扩展
+两种方案的差异只来自是否进行日内滚动调整。除近七日均值正式方案外，设置历史扩展
 均值、前一日预测和当日电价完全已知三类对照。表~\ref{tab:q4-3} 显示，正式方案费用为
 \num{16616064.63} 元，比固定电价高 5.34\%，比另外两种因果基线分别低 \num{9382.35} 元
 和 \num{51908.87} 元；完全价格信息仅再降低 \num{133004.16} 元（0.80\%）。因此主要改进
@@ -1061,7 +1075,7 @@ $0.0076\sim1.7936$ 元/kWh（图~\ref{fig:q4-price}），故价格水平、峰�
 % 由 src/py/make_q4_tables.py 自动生成，请勿手工修改
 \begin{table}[H]
   \centering
-  \caption{问题四 4-3：波动电价下滚动调整策略的全年费用（2025-02-01--12-31，共 334 天）}
+  \caption{波动电价下问题三滚动策略的全年费用}
   \label{tab:q4-3}
   \small
   \resizebox{\textwidth}{!}{%
@@ -1093,19 +1107,20 @@ $0.0076\sim1.7936$ 元/kWh（图~\ref{fig:q4-price}），故价格水平、峰�
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\textwidth]{figures/q4_3_cost.pdf}
-  \caption{问题四 4-3：波动电价下各方案的全年费用与完全信息下界}
+  \caption{波动电价下日内方案的全年费用与完全信息下界}
   \label{fig:q4-3}
 \end{figure}
 
-\subsection{结果对比}
+\subsection{综合比较与决策启示}
 
-把各问的“完全信息基准”与“可实现基准”放在一起，可以分离三类不确定性的贡献
-（均以全年合计费用计）：固定电价下的完全信息最优为 \num{12245025} 元（问题二），
-波动电价下的完全信息最优为 \num{12831089.48} 元（4-3），二者之差 \num{586064.48} 元
-（4.79\%）即\textbf{价格波动本身}的代价；从 \num{12831089.48} 元到波动电价
+前两节分别给出了日前固定执行和日内滚动调整的结果。为避免直接比较不同信息口径，下面
+先比较同属完全信息或同属因果决策的方案，再讨论价格波动、预测误差与日内调整的相对影响。
+固定电价下的完全信息最优为 \num{12245025} 元，波动电价下的完全信息最优为
+\num{12831089.48} 元，二者之差 \num{586064.48} 元（4.79\%），反映在真实源荷均已知时
+更换价格序列所造成的费用变化；从 \num{12831089.48} 元到波动电价
 “完美价格信息 $+$ 光伏预报不确定 $+$ 滚动调整”的 \num{16483060.47} 元，
 还要再付出 \num{3651970.99} 元，这部分是\textbf{预测误差与时间结构}的代价。
-由完美价格信息改为正式因果预测后，4-2 与 4-3 分别增加 \num{142449.77} 元和
+由完美价格信息改为正式因果预测后，日前方案与日内方案分别增加 \num{142449.77} 元和
 \num{133004.16} 元，均不足总费用的 0.9\%。
 
 在问题二的执行口径下（0:00 定计划、之后不调整），把固定电价换成波动电价后，
@@ -1135,7 +1150,7 @@ $0.0076\sim1.7936$ 元/kWh（图~\ref{fig:q4-price}），故价格水平、峰�
 
 \begin{table}[H]
   \centering
-  \caption{问题三关键参数的代表性灵敏度结果（基准费用 \num{15773615} 元）}
+  \caption{问题三关键参数的代表性灵敏度结果}
   \label{tab:q3-sens}
   \small
   \begin{tabular}{lrrrr}
@@ -1248,7 +1263,7 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
 \num{17256638.87} 元和 \num{16616064.63} 元。提前获知当日全部电价相对两种正式方案
 分别只能节省约 \num{142450} 元和 \num{133004} 元，均不足总费用的 0.9\%。由此可见，
 在附件数据所呈现的价格结构下，提高源荷预测与残差标定质量的优先级高于追求完美价格信息。
-两日前瞻进一步把4-2费用降至 \num{17233738.33} 元，说明跨日 SOC 机会价值虽小但稳定存在。
+两日前瞻进一步把问题四日前费用降至 \num{17233738.33} 元，说明跨日 SOC 机会价值虽小但稳定存在。
 
 敏感性分析表明，SOC 可用范围和单向充放电效率是最重要的设备参数，而额定功率超过题设水平
 后的边际收益较小；残差场景过窄或过宽都会增加费用。由此建议：设备规划阶段优先评估容量与
@@ -1262,76 +1277,81 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
 
 \begin{thebibliography}{99}
   \small
-  \bibitem{parisio2014} A. Parisio, E. Rikos, G. Tzamalis, et al. Use of model
-  predictive control for experimental microgrid optimization[J]. Applied Energy,
-  2014, 115: 37--46.
+  \bibitem{iea2022der} International Energy Agency, \emph{Unlocking the Potential of
+  Distributed Energy Resources}. Paris, France: IEA, 2022.
 
-  \bibitem{nrel2022} P. Joshi and C. Gokhale-Welch. Fundamentals of Energy
-  Storage[R]. Golden: National Renewable Energy Laboratory, 2022.
+  \bibitem{parisio2014} A. Parisio, E. Rikos, G. Tzamalis, and L. Glielmo,
+  ``Use of model predictive control for experimental microgrid optimization,''
+  \emph{Applied Energy}, vol. 115, pp. 37--46, 2014.
 
-  \bibitem{hyndman2021} R. J. Hyndman and G. Athanasopoulos. Time series
-  cross-validation[M/OL]//Forecasting: Principles and Practice. 3rd ed., 2021.
+  \bibitem{nrel2022} P. Joshi and C. Gokhale-Welch, \emph{Fundamentals of Energy
+  Storage}. Golden, CO, USA: National Renewable Energy Laboratory, 2022.
 
-  \bibitem{tashman2000} L. J. Tashman. Out-of-sample tests of forecasting
-  accuracy: An analysis and review[J]. International Journal of Forecasting,
-  2000, 16(4): 437--450.
+  \bibitem{hyndman2021} R. J. Hyndman and G. Athanasopoulos,
+  \emph{Forecasting: Principles and Practice}, 3rd ed. Melbourne, Australia:
+  OTexts, 2021.
 
-  \bibitem{wang2018} Y. Wang, Q. Chen, N. Zhang, et al. Conditional residual
-  modeling for probabilistic load forecasting[J]. IEEE Transactions on Power
-  Systems, 2018, 33(6): 7327--7330.
+  \bibitem{tashman2000} L. J. Tashman, ``Out-of-sample tests of forecasting
+  accuracy: An analysis and review,'' \emph{International Journal of Forecasting},
+  vol. 16, no. 4, pp. 437--450, 2000.
 
-  \bibitem{taylor2007} J. W. Taylor. Forecasting daily supermarket sales using
-  exponentially weighted quantile regression[J]. European Journal of Operational
-  Research, 2007, 178(1): 154--167.
+  \bibitem{wang2018} Y. Wang, Q. Chen, N. Zhang, et al., ``Conditional
+  residual modeling for probabilistic load forecasting,'' \emph{IEEE Trans. Power
+  Syst.}, vol. 33, no. 6, pp. 7327--7330, 2018.
 
-  \bibitem{mandal2006} P. Mandal, T. Senjyu, N. Urasaki, et al. A neural network
-  based several-hour-ahead electric load forecasting using similar days
-  approach[J]. International Journal of Electrical Power \& Energy Systems,
-  2006, 28(6): 367--373.
+  \bibitem{taylor2007} J. W. Taylor, ``Forecasting daily supermarket sales using
+  exponentially weighted quantile regression,'' \emph{European Journal of
+  Operational Research}, vol. 178, no. 1, pp. 154--167, 2007.
 
-  \bibitem{acharya2020} S. K. Acharya, Y.-M. Wi, and J. Lee. Day-ahead
+  \bibitem{mandal2006} P. Mandal, T. Senjyu, N. Urasaki, and T. Funabashi,
+  ``A neural network based several-hour-ahead electric load forecasting using
+  similar days approach,'' \emph{International Journal of Electrical Power \&
+  Energy Systems}, vol. 28, no. 6, pp. 367--373, 2006.
+
+  \bibitem{acharya2020} S. K. Acharya, Y.-M. Wi, and J. Lee, ``Day-ahead
   forecasting for small-scale photovoltaic power based on similar day detection
-  with selective weather variables[J]. Electronics, 2020, 9(7): 1117.
+  with selective weather variables,'' \emph{Electronics}, vol. 9, no. 7,
+  Art. no. 1117, 2020.
 
-  \bibitem{gorman2024} W. Gorman, G. Barbose, C. Miller, et al. Evaluating the
+  \bibitem{gorman2024} W. Gorman, G. Barbose, C. Miller, et al., ``Evaluating the
   potential for solar-plus-storage backup power in the United States as homes
-  integrate efficient, flexible, and electrified energy technologies[J].
-  Energy, 2024, 304: 132180.
+  integrate efficient, flexible, and electrified energy technologies,''
+  \emph{Energy}, vol. 304, Art. no. 132180, 2024.
 
-  \bibitem{boyd2004} S. Boyd and L. Vandenberghe. Convex Optimization[M].
-  Cambridge: Cambridge University Press, 2004.
+  \bibitem{boyd2004} S. Boyd and L. Vandenberghe, \emph{Convex Optimization}.
+  Cambridge, U.K.: Cambridge University Press, 2004.
 
-  \bibitem{scipy2020} P. Virtanen, R. Gommers, T. E. Oliphant, et al. SciPy 1.0:
-  Fundamental algorithms for scientific computing in Python[J]. Nature Methods,
-  2020, 17: 261--272.
+  \bibitem{scipy2020} P. Virtanen, R. Gommers, T. E. Oliphant, et al., ``SciPy
+  1.0: Fundamental algorithms for scientific computing in Python,''
+  \emph{Nature Methods}, vol. 17, pp. 261--272, 2020.
 
   \bibitem{jayawardana2019} A. Jayawardana, A. P. Agalgaonkar,
-  D. A. Robinson, et al. Optimisation framework for the operation of battery
-  storage within solar-rich microgrids[J]. IET Smart Grid, 2019, 2(4): 504--513.
+  D. A. Robinson, et al., ``Optimisation framework for the operation of
+  battery storage within solar-rich microgrids,'' \emph{IET Smart Grid}, vol. 2,
+  no. 4, pp. 504--513, 2019.
 
-  \bibitem{parisio2016} A. Parisio, E. Rikos, and L. Glielmo. Stochastic model
+  \bibitem{parisio2016} A. Parisio, E. Rikos, and L. Glielmo, ``Stochastic model
   predictive control for economic/environmental operation management of
-  microgrids: An experimental case study[J]. Journal of Process Control,
-  2016, 43: 24--37.
+  microgrids: An experimental case study,'' \emph{Journal of Process Control},
+  vol. 43, pp. 24--37, 2016.
 
-  \bibitem{liu2017} S. Liu, P. X. Liu, X. Wang, et al. Effects of correlated
-  photovoltaic power and load uncertainties on grid-connected microgrid
-  day-ahead scheduling[J]. IET Generation, Transmission \& Distribution,
-  2017, 11(14): 3620--3627.
+  \bibitem{liu2017} S. Liu, P. X. Liu, X. Wang, et al., ``Effects of
+  correlated photovoltaic power and load uncertainties on grid-connected
+  microgrid day-ahead scheduling,'' \emph{IET Generation, Transmission \&
+  Distribution}, vol. 11, no. 14, pp. 3620--3627, 2017.
 
-  \bibitem{silvente2015} J. Silvente, G. M. Kopanos, E. N. Pistikopoulos, et al.
-  A rolling horizon optimization framework for the simultaneous energy supply
-  and demand planning in microgrids[J]. Applied Energy, 2015, 155: 485--501.
+  \bibitem{silvente2015} J. Silvente, G. M. Kopanos, E. N. Pistikopoulos, and
+  A. Espu\~na, ``A rolling horizon optimization framework for the simultaneous
+  energy supply and demand planning in microgrids,'' \emph{Applied Energy},
+  vol. 155, pp. 485--501, 2015.
 
-  \bibitem{birge2011} J. R. Birge and F. Louveaux. Introduction to
-  Stochastic Programming[M]. 2nd ed. New York: Springer, 2011.
+  \bibitem{birge2011} J. R. Birge and F. Louveaux, \emph{Introduction to
+  Stochastic Programming}, 2nd ed. New York, NY, USA: Springer, 2011.
 
-  \bibitem{ghadimi2024} S. Ghadimi and W. B. Powell. Stochastic search for a
-  parametric cost function approximation: Energy storage with rolling forecasts[J].
-  European Journal of Operational Research, 2024, 312(2): 641--652.
-
-  \bibitem{iea2022der} International Energy Agency. Unlocking the Potential of
-  Distributed Energy Resources[R]. Paris: IEA, 2022.
+  \bibitem{ghadimi2024} S. Ghadimi and W. B. Powell, ``Stochastic search for a
+  parametric cost function approximation: Energy storage with rolling forecasts,''
+  \emph{European Journal of Operational Research}, vol. 312, no. 2,
+  pp. 641--652, 2024.
 
 \end{thebibliography}
 
@@ -1369,17 +1389,17 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
   \caption{因果日前调度}
   \label{alg:causal-day-ahead}
   \KwIn{截至决策日前一日的历史源荷数据、固定或因果预测电价、储能状态}
-  \KwOut{问题二或问题 4-2 的逐日计划、实际结算及全年汇总}
+  \KwOut{问题二或问题四日前方案的逐日计划、实际结算及全年汇总}
   \For{测试期中的每个目标日 $d$}{
     令上一日实际日末 SOC 为当日初始状态\;
     仅用日 $d$ 前的历史数据计算源荷七日均值，形成净负荷点预测\;
     从前 90 天残差中选取 $K=42$ 个相似状态日，以 $\lambda=0.95$ 计算加权
     $80\%$ 分位数并修正净负荷\;
     调用算法~\ref{alg:unified-dispatch} 生成 0:00 日前购电与储能计划\;
-    \If{执行问题 4-2}{
+    \If{执行问题四日前方案}{
       使用一月校准后锁定的近七日电价预测\;
     }
-    以真实源荷结算缺口和弃电；问题 4-2 按实际波动电价计算计划及五倍价紧急购电费用\;
+    以真实源荷结算缺口和弃电；问题四按实际波动电价计算计划及五倍价紧急购电费用\;
     保存当日结果，并将真实数据与预测残差加入历史集合\;
   }
   汇总 334 天正常购电费、紧急购电费、预测误差及完全信息对照结果\;
@@ -1390,7 +1410,7 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
   \caption{日内滚动调整}
   \label{alg:intraday-rolling}
   \KwIn{0:00 日前计划，6:00、12:00、18:00 光伏预报，残差场景及电价}
-  \KwOut{问题三或问题 4-3 的调整后计划、节点决策和实际费用}
+  \KwOut{问题三或问题四日内方案的调整后计划、节点决策和实际费用}
   在 0:00 根据可用预测和残差场景生成全天计划，并记录原始购电合同\;
   \For{$\tau\in\{6{:}00,12{:}00,18{:}00\}$}{
     冻结 $\tau$ 前已执行动作和当前 SOC，只处理剩余时段\;
@@ -1401,7 +1421,7 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
       以新计划替换尚未执行的计划\;
     }
   }
-  用真实源荷完成当日结算；问题 4-3 决策使用因果电价预测，结算使用实际波动电价\;
+  用真实源荷完成当日结算；问题四决策使用因果电价预测，结算使用实际波动电价\;
   汇总各节点采用次数、调整量、购电费与紧急购电费，并写入结果文件\;
 \end{algorithm}
 
@@ -1422,10 +1442,10 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
       & 因果预测、风险修正、固定计划结算与 \texttt{result2.xlsx} \\
     问题三 & \texttt{q3\_model.py}，\texttt{run\_q3.py}，\texttt{fill\_result3.py}
       & 日内滚动调整、节点价值统计与 \texttt{result3.xlsx} \\
-    问题 4-2 & \texttt{question4\_2.py}，\texttt{question4\_2\_forecast.py}，
+    问题四日前方案 & \texttt{question4\_2.py}，\texttt{question4\_2\_forecast.py}，
       \texttt{q4\_innovation\_experiment.py}
       & 因果电价预测、日前调度与 \texttt{result4-2.xlsx}；跨日增强另作对照实验，不写入该工作簿 \\
-    问题 4-3 & \texttt{q4\_model.py}，\texttt{run\_q4\_3.py}，
+    问题四日内方案 & \texttt{q4\_model.py}，\texttt{run\_q4\_3.py}，
       \texttt{fill\_result4\_3.py}
       & 波动电价滚动结算、方案比较与 \texttt{result4-3.xlsx} \\
     \bottomrule
@@ -1469,7 +1489,7 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
 模型、算法或结论。
 
 \par\medskip\noindent\textbf{记录 1：问题二参考资料检索与核验。}\par
-\par\noindent\textbf{涉及位置：}问题二“数据预处理与预测方法”部分及参考文献[3]--[8]。
+\par\noindent\textbf{涉及位置：}问题二“数据预处理与预测方法”部分及相关参考文献。
 \par\noindent\textbf{触发原因：}需要为因果回测、条件残差分位数和相似日预测等已选方法补充可追溯的理论依据，并避免只凭二手摘要引用。
 \par\noindent\textbf{AI 辅助工作：}根据参赛队给出的主题，整理中英文检索词和候选资料的对照字段，例如研究对象、可用信息时点、误差度量、约束形式及适用范围；同时提示逐项核对题名、作者、年份和出处。
 \par\noindent\textbf{人工处理与核验：}核对文献信息和实际结论，将确认后的条目写入参考矩阵；正文只引用经原文核验且与本题用法一致的资料，未把 AI 回答作为文献来源。
