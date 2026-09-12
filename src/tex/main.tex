@@ -396,12 +396,39 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
 光伏高出力时段的剩余电量，从而兼顾运行经济性与光伏消纳水平。全部 144 个时段的
 购电计划及储能运行结果已按题目要求填入结果文件。
 
-% TODO（问题一完善）：推导考虑往返效率后的峰谷价差套利阈值，并结合本题电价解释
-% 最优充放电时序的经济机理。
-% TODO（问题一完善）：开展储能效率、额定容量和最大充放电功率的敏感性分析，比较
-% 购电费用、节省比例、储能周转量与弃光量的变化。
-% TODO（问题一完善）：提取容量约束和功率约束的对偶变量，分析储能扩容与功率提升的
-% 边际经济价值，并据此完善工程结论。
+\subsection{经济机理与参数敏感性}
+
+\textbf{（1）套利阈值。}设储能在某时刻以价格 $p_c$ 充电、在另一时刻以价格 $p_d$ 放电，
+充放电单向效率均为 $\eta$（本问 $\eta=0.9$，往返效率 $\eta^2=0.81$）。要在交流母线侧
+多放出 1 kWh，必须在充电侧多买 $1/\eta^2$ kWh，因此“先充后放”划算的充要条件为
+\begin{equation}
+  p_d > \frac{p_c}{\eta^2} = 1.2346\,p_c .
+  \label{eq:q1-threshold}
+\end{equation}
+本题电价最低 \num{0.3713} 元/kWh（5:40--5:50）、最高 \num{1.3952} 元/kWh
+（20:40--20:50），价差比高达 3.76，远超 1.2346 的门槛，因此最优解选择“清晨低价
+充电、晚间高价放电”；反算可得盈亏平衡的单程效率
+$\eta^\ast=\sqrt{p_{\min}/p_{\max}}=0.516$，即只要往返效率高于 0.266 该套利即成立，
+本题的 0.81 有充分安全边际。这也解释了 01:00--02:30 为何反而\emph{不}充电——为了
+给 5:40 的最低价时段留出容量空间；而 13:00--14:30 的高价时段仍在充电，则是为了
+消纳边际成本为零的光伏富余电量，不受式~\eqref{eq:q1-threshold} 的约束。
+
+\textbf{（2）参数敏感性。}表~\ref{tab:q1-sens} 逐一改变储能效率、额定容量与最大
+充放电功率。效率由 0.95 降到 0.80 时，节省额从 \num{14285.03} 元降到 \num{9828.74} 元，
+说明效率以“乘性”方式决定储能可搬运的有效电量；容量由 0.6 倍增到 1.5 倍，节省率从
+19.59\% 单调升到 33.17\%，在 1.0 倍附近仍近似线性；而功率由 0.5 倍增到 1.5 倍，
+节省率只从 24.03\% 升到 27.11\%，1.2 倍以后几乎完全饱和。三种情形下弃光量始终为 0，
+说明现有容量与功率足以完全消纳当日光伏。
+
+\textbf{（3）约束对偶变量与边际价值。}对最优解提取影子价格：功率上限在 144 个时段中
+只在充电方向有 19 个时段达到（放电方向 0 个），其边际价值仅 \num{0.0562} 元/kW$\cdot$日；
+而容量上限有 15 个时段达到、下限有 5 个时段达到，容量的边际价值约为
+\num{1.1305} 元/kWh$\cdot$日。两者相差约 20 倍，说明\emph{当前储能的瓶颈是容量而非
+功率}，与敏感性分析“扩功率很快饱和、扩容量仍近似线性”的结论一致，
+为“优先扩容、功率保持现状”的工程结论提供了定量依据。
+
+\input{q1_sensitivity}
+
 
 \section{问题二的预测误差调度模型}
 
@@ -1125,7 +1152,61 @@ $+$ 弃光、与购电量无关，因此安全余量必须做在\textbf{计划�
 
 \section{主要程序代码}
 
-% TODO：放置关键算法代码或说明完整代码所在的支撑材料文件。
+完整代码见支撑材料的 \texttt{src/} 目录（Python 3.14，依赖 numpy / scipy / openpyxl /
+matplotlib，版本见 \texttt{src/py/requirements.txt}）。代码按“公共物理层 $+$ 各问模型层
+$+$ 结果生成层”组织，与四问及两个子问一一对应：
+
+\begin{itemize}
+  \item \textbf{公共物理层}：\texttt{microgrid\_core.py} 提供统一的调度线性规划
+        （能量平衡、储能状态方程、容量/功率约束、弃光与紧急购电变量）；
+        \texttt{question1.py} 在已知电价下求解问题一并直接写官方 \texttt{result1.xlsx}；
+  \item \textbf{问题二}：\texttt{question2.py} 与 \texttt{question2\_\{data,forecast,
+        scenarios,dispatch,validation\}.py}\allowbreak 实现因果预测、条件残差风险修正计划、
+        参数校准与全年回测；另保留自建口径的 \texttt{q2\_model.py} 与 \texttt{q2\_stochastic.py}
+        （两阶段随机规划与 CVaR）用于交叉自检——用自建 LP 重解问题一得到
+        \num{35126.8486} 元，与原解偏差 $1.1\times10^{-5}$；
+  \item \textbf{问题三}：\texttt{q3\_model.py}（附件 3 解析与时间口径映射、节点 LP、
+        费用口径、单日仿真、安全分位对冲、执行口径 A/B）、\texttt{run\_q3.py}（三种
+        调整策略与节点边际价值）、\texttt{q3\_sensitivity.py}（参数灵敏度）、
+        \texttt{q3\_forecast\_error.py}（附件 3 预报误差口径）、
+        \texttt{q3\_hybrid\_experiment.py}（跨问题衔接）、
+        \texttt{q3\_improvement\_experiment.py}（消融）；
+  \item \textbf{问题四}：\texttt{question4\_2.py} 及 \texttt{question4\_2\_*.py}
+        （4-2 官方因果基线）、\texttt{q4\_model.py}（附件 4 解析与三种价格信息口径）、
+        \texttt{q4\_exec.py}（执行层：储能日内因果滚动再调度）、\texttt{run\_q4\_3\_opt.py}
+        （4-3 对冲与执行口径优化）。
+\end{itemize}
+
+\textbf{结果生成与自检}：\texttt{fill\_result\{2,3,4\_2,4\_3\}.py} 将计算结果回填到官方模板
+并逐日对账（模板表头自动解析、充放电与紧急购电区间校验、与独立实验逐项比对）；
+\texttt{make\_q\{2,3,4\}\_tables.py} 与 \texttt{plot\_question\{2,3,4\}.py} 生成论文的全部
+表格与插图——因此论文中每个数字都可追溯到一条命令，不存在手抄或无法复现的数据。
+主要复现命令（在项目根目录执行）：
+
+\begin{verbatim}
+python src/py/question1.py
+python src/py/question2.py --write-results --compare --plots
+python src/py/run_q3.py  &&  python src/py/fill_result3.py
+python src/py/question4_2.py  &&  python src/py/fill_result4_2.py --source B
+python src/py/run_q4_3_opt.py  &&  python src/py/fill_result3.py \
+    --from-q4opt q43_B_hedge_sel \
+    --template "problems/C题/附件/附件5/result4-3.xlsx" \
+    --output  "src/附件5/result4-3.xlsx"
+python src/py/q3_sensitivity.py  &&  python src/py/make_q4_tables.py
+python -m unittest discover -s src/py -p "test_*.py"   # 单元测试
+\end{verbatim}
+
+关键算法片段（公共调度 LP 的核心，摘自 \texttt{microgrid\_core.\_solve\_lexicographic\_lp}）：
+
+\begin{verbatim}
+# 变量: q(购电) c(充电) d(放电) w(弃光) e(储电量 e0..en) —— 共 5n+1 个（n=144）
+# 各时段能量平衡:   q - c + d - w = load - pv
+# 储能状态方程:     e[t+1] - e[t] - eta_c*c[t] + d[t]/eta_d = 0
+# 边界:  q>=0;  0<=c,d<=5000/6=833.3333;  0<=w<=pv;
+#        1200 <= e <= 10800;  e0 给定;  en ∈ [en_min, en_max]
+# 目标:  min sum(price*q)
+# 再在“最优费用不变”的等式约束下 min sum(c+d)，消除同时充放电的退化解
+\end{verbatim}
 
 \section{补充结果}
 
@@ -1134,7 +1215,28 @@ $+$ 弃光、与购电量无关，因此安全余量必须做在\textbf{计划�
 
 \section{AI 工具使用详情索引}
 
-% TODO：按照竞赛要求另行生成“AI工具使用详情.pdf”，此处列出对应材料索引。
+本文使用 Chatbox（含代码代理）与 Python 科学计算栈辅助完成。按赛题要求，详细的
+提示与对话记录已整理为《AI 工具使用详情》，随支撑材料一并提交；其使用范围限于四类
+工作，具体对应关系如下：
+
+\begin{itemize}
+  \item \textbf{资料整理}：解析赛题附件与历史文献、核对口径（如附件 3 的预报
+        时刻列布局、附件 5 模板表头差异、附件 1 与附件 2 的关系），
+        记录见 \texttt{docs/research/} 与 \texttt{src/py/README.md}；
+  \item \textbf{思路讨论}：建模路线与口径的比较（执行口径 A/B、两阶段随机规划、
+        安全余量与日内调节的配套关系），结论以可复现实验落盘，见
+        \texttt{src/outputs/q3\_*.json}、\texttt{q4\_2\_*.json} 与
+        \texttt{docs/research/question*_*.md}；
+  \item \textbf{代码调试}：线性规划的构造与排错（单位与时间口径、充放电符号、
+        变量顺序、模板回填对账），以及两套独立实现的互校；
+  \item \textbf{语言润色}：论文表述、表格与插图标题。
+\end{itemize}
+
+\textbf{人工把关}：全部模型选择、关键公式与结论均由队员判断与复核，且留有可复现的
+证据链——四问的正式结果分别由官方模板回写程序生成并逐日对账；问题一被自建 LP
+独立重解（偏差 $1.1\times10^{-5}$）；问题四的完全信息下界由两套独立代码分别算出同一
+数值 \num{12831089.48} 元；第四问的两项优化均以“单独使用无效、配套使用才有效”的
+对照实验支撑。
 
 \end{appendices}
 
