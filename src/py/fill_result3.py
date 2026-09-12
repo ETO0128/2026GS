@@ -246,6 +246,10 @@ def main() -> None:
     ap.add_argument("--policy", choices=["none", "fixed", "selective"], default="selective")
     ap.add_argument("--s-max", type=int, default=6)
     ap.add_argument("--limit", type=int, default=None, help="只填前 N 天（检查格式用）")
+    ap.add_argument("--from-q4opt", default=None,
+                    help="从 src/outputs/q4_3_opt.json 的某个 run 读取逐日结果回填")
+    ap.add_argument("--exec-mode", default="A", help="A / B / B_causal（直接计算时生效）")
+    ap.add_argument("--plan-hedge", type=float, default=None, help="安全分位对冲（直接计算时生效）")
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--template", type=Path, default=None)
     ap.add_argument("--output", type=Path, default=None)
@@ -258,7 +262,22 @@ def main() -> None:
 
     att = q2.Attachment(root)
     f3 = q3.PvForecast3(root)
-    days = compute_days(att, f3, args.policy, args.s_max, args.limit)
+    if args.from_q4opt:
+        import datetime as _dt
+        import json as _json
+        opt = _json.loads((outs := root / "src" / "outputs" / "q4_3_opt.json").read_text(
+            encoding="utf-8"))
+        run = opt["runs"][args.from_q4opt]
+        days = [{"date": _dt.date.fromisoformat(d["date"]), "index": d["index"],
+                 "q_plan": np.asarray(d["q_plan"]), "q_adj": np.asarray(d["q_adj"]),
+                 "charge": np.asarray(d["charge"]), "discharge": np.asarray(d["discharge"]),
+                 "soc_start": float(d["soc_start"]), "soc_end": float(d["soc_end"]),
+                 "shortfall": np.asarray(d["shortfall"]), "plan_cost": float(d["plan_cost"]),
+                 "fee": float(d["fee"]), "emg_kwh": float(d["emg_kwh"]),
+                 "emg_cost": float(d["emg_cost"]), "total": float(d["total"])}
+                for d in run["detail"]]
+    else:
+        days = compute_days(att, f3, args.policy, args.s_max, args.limit)
     fill(template, output, days)
     print(f"已写入 {output}（策略 {args.policy}，{len(days)} 天）")
     verify(output, days, args.policy)

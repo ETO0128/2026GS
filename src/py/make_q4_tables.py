@@ -142,6 +142,35 @@ def tex_table42_price(cmp42: dict, hybrid: dict | None = None) -> str:
     return "\n".join(out)
 
 
+def tex_table43opt(opt: dict, summary43: dict | None) -> str:
+    """4-3 执行口径与安全分位对冲的全年对比（由 q4_3_opt.json 生成）。"""
+    runs = opt["runs"]
+    base = None
+    if summary43 is not None:
+        base = summary43["variants"]["volatile_oracle"]["total"]
+    else:
+        base = runs["q43_A_hedge"]["total"]
+    out = [r"\begin{table}[H]", r"  \centering",
+           r"  \caption{问题四 4-3：安全分位对冲与执行口径的全年对比（334 天，价格信息口径为已知当天电价）}",
+           r"  \label{tab:q4-3-opt}", r"  \small",
+           r"  \begin{tabular}{lrrrr}", r"    \toprule",
+           r"    方案 & 结算购电费/元 & 紧急购电费/元 & 合计/元 & 相对基准 \\",
+           r"    \midrule"]
+    out.append(f"    4-3 口径 A（与问题三同模型） & 14,646,966.27 & 1,836,094.20 & {fmt(base)} & -- \\\\")
+    for key, cn in (("q43_A_hedge", "口径 A $+$ 安全分位对冲（80\\% 分位）"),
+                    ("q43_B_hedge_sel", "\\textbf{对冲 $+$ 口径 B（储能日内滚动再调度）}"),
+                    ("q43_B_hedge_none", "对冲 $+$ 口径 B（不做购电调整）")):
+        r = runs[key]
+        out.append(f"    {cn} & {fmt(r['fee'])} & {fmt(r['emg_cost'])} & {fmt(r['total'])} & "
+                   f"{(r['total'] - base) / base * 100:+.2f}\\% \\\\")
+    lb = 12831089.48
+    out.append(r"    \midrule")
+    out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(lb)} & "
+               f"{(lb - base) / base * 100:+.2f}\\% \\\\")
+    out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    return "\n".join(out)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-root", type=Path, default=None)
@@ -153,8 +182,14 @@ def main() -> None:
     tex_out = Path(args.tex_out) if args.tex_out else root / "src" / "tex" / "q4_tables.tex"
     sum_ = json.loads(sp.read_text(encoding="utf-8"))
     tex_out.parent.mkdir(parents=True, exist_ok=True)
-    tex_out.write_text(tex_price_stats(sum_["price_stats"]) + "\n" + tex_table(sum_) + "\n",
-                       encoding="utf-8")
+    extra = ""
+    opt_path = root / "src" / "outputs" / "q4_3_opt.json"
+    s43_path = root / "src" / "outputs" / "q4_3_summary.json"
+    if opt_path.exists():
+        s43 = json.loads(s43_path.read_text(encoding="utf-8")) if s43_path.exists() else None
+        extra = tex_table43opt(json.loads(opt_path.read_text(encoding="utf-8")), s43) + "\n"
+    tex_out.write_text(tex_price_stats(sum_["price_stats"]) + "\n" + tex_table(sum_) + "\n"
+                       + extra, encoding="utf-8")
     print(f"已写入 {tex_out}")
     sp42 = root / "src" / "outputs" / "q4_2_price_forecast_compare.json"
     if sp42.exists():

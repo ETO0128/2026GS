@@ -370,7 +370,8 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                  scenario_decay: float = 0.95, pv_interpolation: str = "step",
                  initial_soc=None, terminal_mode: str = "cycle",
                  terminal_value: float = 0.0, forecast_source: str = "legacy",
-                 scenario_weighting: str = "legacy", initial_plan=None) -> dict:
+                 scenario_weighting: str = "legacy", initial_plan=None,
+                 plan_hedge: float | None = None) -> dict:
     """执行一天：0:00 计划 + 6:00/12:00/18:00 调整 + 实际结算。
 
     policy: "none" 不调整；"fixed" 固定调整；"selective" 仅当预期收益为正才调整
@@ -409,6 +410,11 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                                      fc_kwargs, scenario_decay, pv_interpolation, forecast_source,
                                      scenario_weighting)
         plan_pen = np.full(q2.N, P.emg)
+        if plan_hedge is not None:
+            # 口径 A 下“承诺供能量”= 计划净负荷 + 弃光，与购电量无关；
+            # 因此对冲必须体现在计划所用的需求曲线上：抬高到历史净负荷残差的分位数。
+            margin = np.quantile(np.asarray(scen), plan_hedge, axis=0) - (l_fc - v_fc)
+            l_fc = l_fc + margin
         if lookahead_alpha != P.emg:              # 可调整时段（6:00 之后）按更低倍率对冲
             plan_pen[NODE_MIN[1] // 10:] = lookahead_alpha
         plan = seg_lp(price_plan, None, l_fc, v_fc, start_soc, scen, w, "plan",
@@ -450,6 +456,10 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
         scen, w = residual_scenarios(att, f3, i, NODE_MIN[k], s_max, load_lam, scen_scale,
                                      fc_kwargs, scenario_decay, pv_interpolation, forecast_source,
                                      scenario_weighting)
+        if plan_hedge is not None:
+            margin = np.quantile(np.asarray(scen), plan_hedge, axis=0) - (l_fc[j0:] - v_fc[j0:])
+            l_fc = l_fc.copy()
+            l_fc[j0:] = l_fc[j0:] + margin
         qp_seg = q_plan[j0:]
         if exec_mode == "B_causal":
             seg_nets.append((j0, np.max(np.asarray(scen), axis=0)))
