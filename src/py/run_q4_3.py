@@ -19,12 +19,15 @@ import numpy as np
 import q2_model as q2
 import q3_model as q3
 import q4_model as q4
+from question4_2_data import load_question42_data
+from question4_2_forecast import calibrate_price_method
 
 # (名称, 价格信息口径, 决策规则)
 VARIANTS = [
     ("fixed_price", None, "selective"),
     ("volatile_oracle", "oracle", "selective"),
     ("volatile_prev", "prev_day", "selective"),
+    ("volatile_seven_day", "seven_day", "selective"),
     ("volatile_profile", "profile", "selective"),
     ("volatile_oracle_none", "oracle", "none"),
 ]
@@ -32,7 +35,8 @@ NAME_CN = {
     "fixed_price": "附件1 固定电价（问题三基准）",
     "volatile_oracle": "波动电价·0:00 已知当天电价",
     "volatile_prev": "波动电价·前一日电价作预测（因果）",
-    "volatile_profile": "波动电价·历史扩展均值预测（因果，正式）",
+    "volatile_seven_day": "波动电价·近七日均值预测（因果，正式）",
+    "volatile_profile": "波动电价·历史扩展均值预测（因果对照）",
     "volatile_oracle_none": "波动电价·已知电价但不做调整",
 }
 
@@ -48,10 +52,19 @@ def main() -> None:
     att = q2.Attachment(root)
     f3 = q3.PvForecast3(root)
     p4 = q4.Prices4(root, att)
+    price_data = load_question42_data(root / "problems/C题/附件/附件2.xlsx",
+                                     root / "problems/C题/附件/附件4.xlsx")
+    selected_method, calibration = calibrate_price_method(price_data)
+    if selected_method != "seven_day":
+        raise RuntimeError(f"Locked January calibration selected unexpected method: {selected_method}")
     win = att.window[:args.days] if args.days else att.window
 
     lines: list[str] = []
     out: dict = {"window": [str(att.dates[win[0]]), str(att.dates[win[-1]]), len(win)],
+                 "formal_variant": "volatile_seven_day",
+                 "price_calibration": {"window": "2025-01-08--2025-01-31",
+                                       "criterion": "minimum RMSE; MAE and bias for audit",
+                                       "selected_method": selected_method, "scores": calibration},
                  "price_stats": p4.stats(), "variants": {}}
 
     def emit(s=""):
@@ -107,16 +120,17 @@ def main() -> None:
     base = out["variants"]["fixed_price"]
     orac = out["variants"]["volatile_oracle"]
     prev = out["variants"]["volatile_prev"]
+    seven = out["variants"]["volatile_seven_day"]
     prof = out["variants"]["volatile_profile"]
     emit("对比结论")
-    emit(f"  1) 波动电价使全年费用上升：已知当天电价时合计 {orac['total']:,.2f} 元，"
-         f"比固定电价基准高 {orac['total'] - base['total']:,.2f} 元"
-         f"（{(orac['total'] - base['total']) / base['total'] * 100:.2f}%）")
-    emit(f"  2) 价格信息价值：用前一日价格预测合计 {prev['total']:,.2f} 元，"
-         f"比已知当天电价多 {prev['total'] - orac['total']:,.2f} 元"
-         f"（{(prev['total'] - orac['total']) / orac['total'] * 100:.2f}%）；"
-         f"用均值曲线预测合计 {prof['total']:,.2f} 元，多 "
-         f"{prof['total'] - orac['total']:,.2f} 元")
+    emit(f"  1) 波动电价使全年费用上升：近七日均值正式方案合计 {seven['total']:,.2f} 元，"
+         f"比固定电价基准高 {seven['total'] - base['total']:,.2f} 元"
+         f"（{(seven['total'] - base['total']) / base['total'] * 100:.2f}%）")
+    emit(f"  2) 价格信息价值：正式近七日均值方案比已知当天电价多 "
+         f"{seven['total'] - orac['total']:,.2f} 元"
+         f"（{(seven['total'] - orac['total']) / orac['total'] * 100:.2f}%）；"
+         f"历史扩展均值因果对照比正式方案多 {prof['total'] - seven['total']:,.2f} 元，"
+         f"前一日预测比正式方案多 {prev['total'] - seven['total']:,.2f} 元")
     emit(f"  3) 与完全信息下界 {pb['total']:,.2f} 元的差距即为预测误差与日内不可调部分的代价")
 
     out_path = args.out or root / "src" / "outputs" / "q4_3_report.txt"

@@ -3,14 +3,15 @@
 模板与 result3.xlsx 完全同构（计划购电量 / 调整购电量 / 充放电量 / 紧急购电量 四张表），
 因此直接复用 ``fill_result3.fill`` 与 ``fill_result3.verify``，只是把电价换成附件4 的波动电价。
 
-价格信息口径（默认严格因果的 profile）
+价格信息口径（默认经一月校准选定的 seven_day）
 ---------------------------
-``profile``  ：用决策日前历史价格的逐时段扩展均值预测（正式提交口径）；
+``seven_day``：用最近七日已实现价格的逐时段均值预测（正式提交口径）；
+``profile``  ：用决策日前历史价格的逐时段扩展均值预测（对照）；
 ``oracle``   ：0:00 即知当天全部时段电价（仅作不可实施的信息基准）；
 ``prev_day`` ：只用前一日实际电价作预测（因果，作为稳健性对照）。
 
 用法：
-    python src/py/fill_result4_3.py                  # 历史扩展均值，择优调整（默认）
+    python src/py/fill_result4_3.py                  # 近七日均值，择优调整（默认）
     python src/py/fill_result4_3.py --price-mode prev_day
     python src/py/fill_result4_3.py --limit 20        # 只填前 20 天（检查格式）
 输出：src/附件5/result4-3.xlsx
@@ -53,7 +54,7 @@ def compute_days(att: q2.Attachment, f3: q3.PvForecast3, p4: q4.Prices4,
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--price-mode", choices=list(q4.PRICE_MODES), default="profile")
+    ap.add_argument("--price-mode", choices=list(q4.PRICE_MODES), default="seven_day")
     ap.add_argument("--policy", choices=["none", "fixed", "selective"], default="selective")
     ap.add_argument("--s-max", type=int, default=6)
     ap.add_argument("--limit", type=int, default=None)

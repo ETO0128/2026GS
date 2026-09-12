@@ -14,7 +14,7 @@ from question2 import Question2Config, evaluate_period, run_question2
 from question2_data import load_cold_start_forecast, load_year_data
 from question4_2 import Question42Config, _evaluate, run_question42_baseline
 from question4_2_data import load_question42_data, summarize_prices
-from question4_2_forecast import PriceForecastConfig
+from question4_2_forecast import PriceForecastConfig, calibrate_price_method
 
 METHODS = {
     "volatile_seven_day": "seven_day",
@@ -58,6 +58,9 @@ def main() -> None:
     cold = load_cold_start_forecast(a1)
     q1 = load_question1_data(a1)
     data = load_question42_data(a2, a4)
+    selected_method, calibration = calibrate_price_method(data)
+    if selected_method != "seven_day":
+        raise RuntimeError(f"Locked January calibration selected unexpected method: {selected_method}")
 
     fixed = run_question2(load_year_data(a1, a2), Question2Config(), cold)
     variants: dict[str, dict] = {"fixed_price": compact(evaluate_period(fixed.official_days))}
@@ -80,6 +83,12 @@ def main() -> None:
     summary = {
         "window": [str(selected.official_days[0].date), str(selected.official_days[-1].date), len(selected.official_days)],
         "formal_variant": "volatile_seven_day",
+        "price_calibration": {
+            "window": "2025-01-08--2025-01-31",
+            "criterion": "minimum RMSE; MAE and bias reported for audit",
+            "selected_method": selected_method,
+            "scores": calibration,
+        },
         "information_boundary": "At 00:00 only prices realized through the previous day are available.",
         "price_stats": summarize_prices(data),
         "perfect_bound": {"total": perfect_bound}, "variants": variants,

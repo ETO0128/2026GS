@@ -484,7 +484,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--figure-dir",
         type=Path,
-        default=root / "src" / "figure",
+        default=root / "src" / "tex" / "figure",
         help="Directory for Matplotlib figures",
     )
     parser.add_argument(

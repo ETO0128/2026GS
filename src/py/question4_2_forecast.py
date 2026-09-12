@@ -161,3 +161,35 @@ def price_forecast_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[st
         "rmse_yuan_per_kwh": float(np.sqrt(np.mean(error ** 2))),
         "bias_yuan_per_kwh": float(np.mean(error)),
     }
+
+
+def calibrate_price_method(
+    data: Question42Data,
+    methods: tuple[str, ...] = (
+        "previous_day", "seven_day", "week_type", "similar_day_decay", "expanding_mean"
+    ),
+    minimum_history_days: int = 7,
+) -> tuple[str, dict[str, dict[str, float]]]:
+    """Select one causal method using January only and lock it before February.
+
+    RMSE is the primary score because large price errors can distort storage
+    arbitrage more severely; MAE and bias are retained for audit.  Ties keep
+    the caller-provided method order.
+    """
+
+    indices = tuple(
+        index for index, value in enumerate(data.dates)
+        if value.month == 1 and index >= minimum_history_days
+    )
+    if not indices:
+        raise ValueError("Price calibration requires January observations after the warm-up window")
+    scores: dict[str, dict[str, float]] = {}
+    actual = data.price_yuan_per_kwh[list(indices)]
+    for method in methods:
+        predicted = np.stack([
+            forecast_price(data, index, PriceForecastConfig(method=method)).price_yuan_per_kwh
+            for index in indices
+        ])
+        scores[method] = price_forecast_metrics(actual, predicted)
+    selected = min(methods, key=lambda method: scores[method]["rmse_yuan_per_kwh"])
+    return selected, scores

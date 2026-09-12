@@ -81,12 +81,12 @@ def figure_price_band(p4: q4.Prices4, att: q2.Attachment, fig_dir: Path) -> None
 
 
 def figure_cost(sum_: dict, fig_dir: Path) -> None:
-    order = ["fixed_price", "volatile_oracle_none", "volatile_oracle",
-             "volatile_prev", "volatile_profile"]
+    order = ["fixed_price", "volatile_seven_day", "volatile_profile",
+             "volatile_prev", "volatile_oracle", "volatile_oracle_none"]
     v = sum_["variants"]
     tot = [v[k]["total"] / 1e4 for k in order]
-    colors = [GRAY, ORANGE, BLUE, BLUE, BLUE]
-    alphas = [1.0, 1.0, 1.0, 0.6, 0.6]
+    colors = [GRAY, BLUE, BLUE, BLUE, BLUE, ORANGE]
+    alphas = [1.0, 1.0, 0.65, 0.65, 0.65, 1.0]
     fig, ax = plt.subplots(figsize=(7.2, 3.4), constrained_layout=True)
     bars = ax.bar(range(len(order)), tot, color=colors, width=0.62)
     for b, a in zip(bars, alphas):

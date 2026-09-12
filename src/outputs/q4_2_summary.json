@@ -5,6 +5,38 @@
     334
   ],
   "formal_variant": "volatile_seven_day",
+  "price_calibration": {
+    "window": "2025-01-08--2025-01-31",
+    "criterion": "minimum RMSE; MAE and bias reported for audit",
+    "selected_method": "seven_day",
+    "scores": {
+      "previous_day": {
+        "mae_yuan_per_kwh": 0.08482149884259259,
+        "rmse_yuan_per_kwh": 0.12662611840709334,
+        "bias_yuan_per_kwh": 0.008834461805555553
+      },
+      "seven_day": {
+        "mae_yuan_per_kwh": 0.0806415591931217,
+        "rmse_yuan_per_kwh": 0.10291839123209665,
+        "bias_yuan_per_kwh": 0.005331349206349151
+      },
+      "week_type": {
+        "mae_yuan_per_kwh": 0.07886718444155884,
+        "rmse_yuan_per_kwh": 0.10696987066502288,
+        "bias_yuan_per_kwh": 0.010171621651936498
+      },
+      "similar_day_decay": {
+        "mae_yuan_per_kwh": 0.08119588064268474,
+        "rmse_yuan_per_kwh": 0.11341592148881963,
+        "bias_yuan_per_kwh": 0.02168213606960234
+      },
+      "expanding_mean": {
+        "mae_yuan_per_kwh": 0.08146374489957493,
+        "rmse_yuan_per_kwh": 0.10603341623759902,
+        "bias_yuan_per_kwh": 0.009450336285800595
+      }
+    }
+  },
   "information_boundary": "At 00:00 only prices realized through the previous day are available.",
   "price_stats": {
     "minimum_yuan_per_kwh": 0.0076,

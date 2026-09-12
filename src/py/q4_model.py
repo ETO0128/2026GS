@@ -23,8 +23,9 @@ import numpy as np
 import q2_model as q2
 import q3_model as q3
 
-PRICE_MODES = ("oracle", "prev_day", "profile")
-MODE_CN = {"oracle": "已知当天电价", "prev_day": "前一日电价预测", "profile": "逐时段均值曲线"}
+PRICE_MODES = ("oracle", "prev_day", "seven_day", "profile")
+MODE_CN = {"oracle": "已知当天电价", "prev_day": "前一日电价预测",
+           "seven_day": "近七日均值预测", "profile": "历史扩展均值曲线"}
 
 
 class Prices4:
@@ -57,6 +58,8 @@ class Prices4:
             return self.price[i]
         if mode == "prev_day":
             return self.price[i - 1] if i > 0 else self.a1
+        if mode == "seven_day":
+            return self.price[max(0, i - 7):i].mean(axis=0) if i > 0 else self.a1
         if mode == "profile":
             # 扩展窗口只含决策日前已经实现的价格；首日使用附件1冷启动曲线。
             return self.price[:i].mean(axis=0) if i > 0 else self.a1

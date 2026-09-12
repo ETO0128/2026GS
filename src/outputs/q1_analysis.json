@@ -1,0 +1,137 @@
+{
+  "base": {
+    "cost_yuan": 35126.848589324756,
+    "charge_kwh": 20740.66613124989,
+    "discharge_kwh": 16799.93956631241,
+    "curtailment_kwh": 0.0
+  },
+  "no_storage_cost_yuan": 48052.046590846665,
+  "saving_yuan": 12925.198001521909,
+  "saving_percent": 26.898329870478406,
+  "arbitrage": {
+    "round_trip_efficiency": 0.81,
+    "minimum_price_ratio": 1.2345679012345678,
+    "minimum_price_yuan_per_kwh": 0.3713,
+    "maximum_price_yuan_per_kwh": 1.3952,
+    "observed_price_ratio": 3.757608402908699
+  },
+  "sensitivity": {
+    "capacity": [
+      {
+        "level": 0.6,
+        "cost_yuan": 38630.08167641029,
+        "charge_kwh": 13341.183368720183,
+        "discharge_kwh": 10806.358528663352,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.8,
+        "cost_yuan": 36704.73460054849,
+        "charge_kwh": 17179.13750991902,
+        "discharge_kwh": 13915.101383034405,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.0,
+        "cost_yuan": 35126.848589324756,
+        "charge_kwh": 20740.66613124989,
+        "discharge_kwh": 16799.93956631241,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.2,
+        "cost_yuan": 33867.93751831183,
+        "charge_kwh": 22873.999464598914,
+        "discharge_kwh": 18527.93956632512,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.4,
+        "cost_yuan": 32638.468806865607,
+        "charge_kwh": 25007.33279794752,
+        "discharge_kwh": 20255.93956633749,
+        "curtailment_kwh": 0.0
+      }
+    ],
+    "power": [
+      {
+        "level": 0.5,
+        "cost_yuan": 36506.41396681856,
+        "charge_kwh": 18333.2406253267,
+        "discharge_kwh": 14849.924906514621,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.75,
+        "cost_yuan": 35346.03758391938,
+        "charge_kwh": 20512.79239299336,
+        "discharge_kwh": 16615.36183832461,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.0,
+        "cost_yuan": 35126.848589324756,
+        "charge_kwh": 20740.66613124989,
+        "discharge_kwh": 16799.93956631241,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.25,
+        "cost_yuan": 35073.01431344986,
+        "charge_kwh": 20740.666131308266,
+        "discharge_kwh": 16799.939566359695,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 1.5,
+        "cost_yuan": 35027.13488365184,
+        "charge_kwh": 21445.804172120093,
+        "discharge_kwh": 17371.10137941727,
+        "curtailment_kwh": 0.0
+      }
+    ],
+    "efficiency": [
+      {
+        "level": 0.75,
+        "cost_yuan": 39902.11719141822,
+        "charge_kwh": 22633.346036847404,
+        "discharge_kwh": 12731.25714572667,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.8,
+        "cost_yuan": 38223.30161909966,
+        "charge_kwh": 23644.154995044068,
+        "discharge_kwh": 15132.259196828209,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.85,
+        "cost_yuan": 36603.21236241661,
+        "charge_kwh": 22295.505191448185,
+        "discharge_kwh": 16108.502500821312,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.9,
+        "cost_yuan": 35126.848589324756,
+        "charge_kwh": 20740.66613124989,
+        "discharge_kwh": 16799.93956631241,
+        "curtailment_kwh": 0.0
+      },
+      {
+        "level": 0.95,
+        "cost_yuan": 33767.016831312896,
+        "charge_kwh": 19801.75043328997,
+        "discharge_kwh": 17871.07976604419,
+        "curtailment_kwh": 0.0
+      }
+    ]
+  },
+  "marginal_value": {
+    "capacity_yuan_per_added_kwh": 0.5259031111116201,
+    "power_yuan_per_added_kw": 0.05616666666639503,
+    "efficiency_yuan_per_percentage_point": 276.0795240135194,
+    "definition": "one-sided 1% expansion; efficiency changes from 0.90 to 0.91"
+  }
+}

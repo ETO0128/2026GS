@@ -24,11 +24,12 @@ NAME_CN = {
     "fixed_price": "附件1 固定电价（问题三基准）",
     "volatile_oracle": "波动电价，0:00 已知当天电价",
     "volatile_prev": "波动电价，前一日电价作预测",
-    "volatile_profile": "波动电价，历史扩展均值预测（正式）",
+    "volatile_seven_day": "波动电价，近七日均值预测（正式）",
+    "volatile_profile": "波动电价，历史扩展均值预测（因果对照）",
     "volatile_oracle_none": "波动电价，已知电价但不做调整",
 }
-ORDER = ["fixed_price", "volatile_oracle_none", "volatile_oracle",
-         "volatile_prev", "volatile_profile"]
+ORDER = ["fixed_price", "volatile_seven_day", "volatile_profile",
+         "volatile_prev", "volatile_oracle", "volatile_oracle_none"]
 
 
 def fmt(x: float, dec: int = 2) -> str:

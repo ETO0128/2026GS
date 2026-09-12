@@ -11,6 +11,7 @@ import numpy as np
 from question4_2_data import Question42Data
 from question4_2_forecast import (
     PriceForecastConfig,
+    calibrate_price_method,
     forecast_price,
     price_forecast_metrics,
 )
@@ -124,6 +125,17 @@ class Question42ForecastTests(unittest.TestCase):
     def test_first_day_requires_explicit_cold_start_price(self) -> None:
         with self.assertRaisesRegex(ValueError, "cold-start price"):
             forecast_price(synthetic_data(), 0, PriceForecastConfig())
+
+    def test_calibration_is_locked_to_january(self) -> None:
+        data = synthetic_data(45)
+        selected, scores = calibrate_price_method(data)
+        changed_prices = data.price_yuan_per_kwh.copy()
+        changed_prices[31:] = 99.0
+        changed = replace(data, price_yuan_per_kwh=changed_prices)
+        selected_changed, scores_changed = calibrate_price_method(changed)
+
+        self.assertEqual(selected_changed, selected)
+        self.assertEqual(scores_changed, scores)
 
 
 if __name__ == "__main__":
