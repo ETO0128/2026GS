@@ -1362,7 +1362,7 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
   \item 从目标日前 90 天残差中选取 $K=42$ 个相似状态日，以衰减系数 $\lambda=0.95$
         计算加权 $80\%$ 分位数，并据此修正计划净负荷。
   \item 调用算法 A1 生成 0:00 日前购电与储能计划；问题 4-2 使用一月校准后锁定的近七日
-        电价预测。
+        电价预测，跨日增强则联合优化今、明两日并仅执行首日动作。
   \item 全天严格执行计划，以真实负荷和光伏计算缺口、弃电及五倍电价紧急购电费用。
   \item 保存当日计划和结算结果，将真实数据及预测残差加入历史集合，再进入下一日。
   \item 汇总 334 天的正常购电费、紧急购电费、预测误差及完全信息对照结果。
@@ -1404,8 +1404,8 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
     问题三 & \texttt{q3\_model.py}，\texttt{run\_q3.py}，\texttt{fill\_result3.py}
       & 日内滚动调整、节点价值统计与 \texttt{result3.xlsx} \\
     问题 4-2 & \texttt{question4\_2.py}，\texttt{question4\_2\_forecast.py}，
-      \texttt{run\_q4\_2.py}
-      & 因果电价预测、日前调度对照与 \texttt{result4-2.xlsx} \\
+      \texttt{q4\_innovation\_experiment.py}
+      & 因果电价预测、日前调度、跨日增强与 \texttt{result4-2.xlsx} \\
     问题 4-3 & \texttt{q4\_model.py}，\texttt{run\_q4\_3.py}，
       \texttt{fill\_result4\_3.py}
       & 波动电价滚动结算、方案比较与 \texttt{result4-3.xlsx} \\
