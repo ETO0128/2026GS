@@ -74,6 +74,32 @@ def plot_sensitivity(results: dict, path: Path) -> None:
     plt.close(fig)
 
 
+def plot_capacity_power_surface(results: dict, path: Path) -> None:
+    """Plot the cost reduction surface relative to the smallest device."""
+    import matplotlib.pyplot as plt
+
+    surface = results["capacity_power_surface"]
+    values = np.asarray(surface["cost_yuan"], dtype=float)
+    saving = (values[0, 0] - values) / 1e3
+    fig, ax = plt.subplots(figsize=(5.5, 3.8), constrained_layout=True)
+    image = ax.imshow(saving, origin="lower", cmap="YlGnBu", aspect="auto")
+    for row in range(saving.shape[0]):
+        for col in range(saving.shape[1]):
+            ax.text(col, row, f"{saving[row, col]:.2f}", ha="center", va="center", fontsize=8,
+                    color="white" if saving[row, col] > 3.5 else "#222222")
+    ax.set_xticks(range(len(surface["power_scales"])),
+                  [f"{100*x:.0f}%" for x in surface["power_scales"]])
+    ax.set_yticks(range(len(surface["capacity_scales"])),
+                  [f"{100*x:.0f}%" for x in surface["capacity_scales"]])
+    ax.set_xlabel("最大充放电功率倍率")
+    ax.set_ylabel("额定容量倍率")
+    bar = fig.colorbar(image, ax=ax, shrink=0.88)
+    bar.set_label("相对最小配置的日费用降低/千元")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
     data = load_question1_data(root / "problems/C题/附件/附件1.xlsx")
@@ -89,6 +115,12 @@ def main() -> None:
         "power": [{"level": x, **solve_case(data, power_scale=x)} for x in levels["power"]],
         "efficiency": [{"level": x, **solve_case(data, efficiency=x)} for x in levels["efficiency"]],
     }
+    capacity_scales = (0.6, 0.8, 1.0, 1.2, 1.4)
+    power_scales = (0.5, 0.75, 1.0, 1.25, 1.5)
+    capacity_power_cost = [
+        [solve_case(data, capacity_scale=c, power_scale=p)["cost_yuan"] for p in power_scales]
+        for c in capacity_scales
+    ]
     cap_plus = solve_case(data, capacity_scale=1.01)["cost_yuan"]
     power_plus = solve_case(data, power_scale=1.01)["cost_yuan"]
     eff_plus = solve_case(data, efficiency=0.91)["cost_yuan"]
@@ -106,6 +138,11 @@ def main() -> None:
             "observed_price_ratio": float(data.price_yuan_per_kwh.max() / data.price_yuan_per_kwh.min()),
         },
         "sensitivity": sensitivity,
+        "capacity_power_surface": {
+            "capacity_scales": capacity_scales,
+            "power_scales": power_scales,
+            "cost_yuan": capacity_power_cost,
+        },
         "marginal_value": {
             "capacity_yuan_per_added_kwh": (base["cost_yuan"] - cap_plus) / (0.01 * CAPACITY_KWH),
             "power_yuan_per_added_kw": (base["cost_yuan"] - power_plus) / (0.01 * MAX_POWER_KW),
@@ -117,6 +154,7 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     plot_sensitivity(result, root / "src/tex/figure/q1_sensitivity.pdf")
+    plot_capacity_power_surface(result, root / "src/tex/figure/q1_capacity_power_surface.pdf")
     print(json.dumps(result["arbitrage"], ensure_ascii=False, indent=2))
     print(json.dumps(result["marginal_value"], ensure_ascii=False, indent=2))
 
