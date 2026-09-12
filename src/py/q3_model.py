@@ -428,6 +428,9 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
     q_plan = plan["q"].copy()
     q_cur, c_cur, d_cur = plan["q"].copy(), plan["c"].copy(), plan["d"].copy()
     e_cur = plan["e"].copy()
+    seg_nets: list[tuple[int, np.ndarray]] = []   # 口径 B_causal 用的各节点计划净负荷
+    if exec_mode == "B_causal" and initial_plan is None:
+        seg_nets.append((0, np.max(np.asarray(scen), axis=0)))
 
     log = []
     for k in (1, 2, 3):
@@ -448,6 +451,8 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
                                      fc_kwargs, scenario_decay, pv_interpolation, forecast_source,
                                      scenario_weighting)
         qp_seg = q_plan[j0:]
+        if exec_mode == "B_causal":
+            seg_nets.append((j0, np.max(np.asarray(scen), axis=0)))
         keep = eval_seg(price_plan[j0:], q_cur[j0:], c_cur[j0:], d_cur[j0:], qp_seg, scen, w, P)
         J_keep = keep["fee"] + keep["exp_emg_cost"]
         adj = seg_lp(price_plan[j0:], qp_seg, l_fc[j0:], v_fc[j0:], e_cur[j0], scen, w, "adjust",
@@ -474,6 +479,13 @@ def simulate_day(att, f3: PvForecast3, price, i: int, s_max: int = 6,
         from q2_stochastic import realtime_dispatch
         rt = realtime_dispatch(att, q_cur, att.load_kwh[i], att.pv_kwh[i],
                                float(e_cur[0]), float(e_cur[-1]))
+        c_final, d_final, e_final = rt["c"], rt["d"], rt["e"]
+        shortfall = rt["emg"]
+        cost_emg = rt["emg_cost"]
+    elif exec_mode == "B_causal":
+        from q4_exec import redispatch_causal_seg
+        rt = redispatch_causal_seg(price, price_plan, q_cur, l_act, v_act,
+                                   sorted(seg_nets), float(e_cur[0]), float(e_cur[-1]))
         c_final, d_final, e_final = rt["c"], rt["d"], rt["e"]
         shortfall = rt["emg"]
         cost_emg = rt["emg_cost"]

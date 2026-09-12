@@ -1,24 +1,26 @@
 """把问题四 4-2（波动电价下重做问题二）结果回填到官方模板 result4-2.xlsx。
 
-默认口径：与问题二正式口径完全一致
-------------------------------------
-- 源荷预测：七日均值点预测 + 历史净负荷 80% 条件残差分位数（`question2_forecast`）；
-- 电价预测：七日均值（`question4_2_forecast`，因果，只用前一日及更早的附件4）；
-- 0:00 固定日前计划，储能严格执行；实际净负荷超出承诺的部分按 5 倍实际电价紧急购电；
-- 储电量跨日传递（首日 6000 kWh），日末不低于 6000 kWh 储备。
+三种数据源
+----------
+``official``（默认）：与问题二正式口径一致（七日均值+条件残差的源荷预测、因果电价预测、
+    0:00 固定计划 + 储能严格执行），全年 17,256,638.87 元。
+``B``：官方计划照付不议 + 储能日内因果滚动再调度，全年 16,681,808.91 元（第四问正式结果）。
+``legacy``：本文自建源荷预测 + 价格信息口径对照（早期实现）。
 
 模板与 result2.xlsx 完全同构，直接复用 `fill_result2.fill` 与 `verify`。
 
 用法：
-    python src/py/fill_result4_2.py                      # 官方口径（默认）
-    python src/py/fill_result4_2.py --price-method similar_day_decay
-    python src/py/fill_result4_2.py --source legacy --price-mode oracle   # 旧的自建口径对照
+    python src/py/fill_result4_2.py --source B      # 第四问正式结果（口径 B）
+    python src/py/fill_result4_2.py                 # 口径 A（严格执行的对照）
 输出：src/附件5/result4-2.xlsx
 """
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+
+import numpy as np
 
 import q2_model as q2
 from fill_result2 import fill, verify
@@ -70,9 +72,33 @@ def compute_days_legacy(root: Path, price_mode: str, limit: int | None = None) -
     return days
 
 
+def compute_days_B(root: Path) -> list[dict]:
+    """口径 B（官方计划 + 因果滚动再调度）：直接读 run_q4_2_B.py 的产物。"""
+    import datetime as dt
+
+    path = root / "src" / "outputs" / "q4_2_B.json"
+    if not path.exists():
+        raise SystemExit(f"缺少 {path}，请先运行 src/py/run_q4_2_B.py")
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    days = []
+    for k, d in enumerate(rec["detail"]):
+        days.append({
+            "date": dt.date.fromisoformat(d["date"]),
+            "index": d.get("index", k),
+            "g": np.asarray(d["g"], dtype=float),
+            "charge": np.asarray(d["charge"], dtype=float),
+            "discharge": np.asarray(d["discharge"], dtype=float),
+            "soc_start": float(d["soc_start"]), "soc_end": float(d["soc_end"]),
+            "shortfall": np.asarray(d.get("shortfall", d["emg"]), dtype=float),
+            "plan_cost": float(d.get("plan_cost", d["normal"])),
+            "emg_cost": float(d["emg_cost"]),
+        })
+    return days
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--source", choices=["official", "legacy"], default="official")
+    ap.add_argument("--source", choices=["official", "legacy", "B"], default="official")
     ap.add_argument("--price-method", default="seven_day",
                     choices=["previous_day", "seven_day", "week_type", "similar_day_decay"])
     ap.add_argument("--price-mode", default="oracle", choices=["oracle", "prev_day", "profile"])
@@ -90,6 +116,9 @@ def main() -> None:
     if args.source == "official":
         days = compute_days_official(root, args.price_method, args.limit)
         tag = f"官方口径（源荷=问题二正式，电价={args.price_method}）"
+    elif args.source == "B":
+        days = compute_days_B(root)
+        tag = "口径B（官方计划 + 储能日内滚动再调度）"
     else:
         days = compute_days_legacy(root, args.price_mode, args.limit)
         tag = f"旧自建口径（价格 {args.price_mode}）"

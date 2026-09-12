@@ -85,32 +85,59 @@ NAME_CN_42 = {
 }
 
 
-def tex_table42(cmp42: dict, hybrid: dict | None = None) -> str:
-    """4-2：四种因果电价预测口径的全年结果，并与问题二同口径基准对比。"""
-    v = cmp42["variants"]
+def tex_table42(cmp42: dict, hybrid: dict | None = None, b42: dict | None = None) -> str:
+    """4-2 执行口径对比表（口径 A / 口径 B 因果 / 口径 B 完全信息上界）。"""
     out = ["% 由 src/py/make_q4_tables.py 自动生成，请勿手工修改",
            r"\begin{table}[H]", r"  \centering",
-           r"  \caption{问题四 4-2：波动电价下重做问题二的全年费用与四种电价预测口径比较（334 天）}",
+           r"  \caption{问题四 4-2：波动电价下的执行口径对比（全年 334 天）}",
            r"  \label{tab:q4-2}", r"  \small",
            r"  \begin{tabular}{lrrrr}", r"    \toprule",
-           r"    方案 & 正常购电费/元 & 紧急购电费/元 & 合计/元 & 相对问题二基准 \\",
+           r"    方案 & 购电费/元 & 紧急购电费/元 & 合计/元 & 相对问题二基准 \\",
            r"    \midrule"]
+    base = None
     if hybrid is not None:
-        q2 = hybrid["q2_no_adjust"]
-        base = q2["total_yuan"]
-        out.append(f"    问题二基准（附件1 固定电价） & {fmt(q2['contract_fee_yuan'])} & "
-                   f"{fmt(q2['emergency_cost_yuan'])} & {fmt(base)} & -- \\\\")
-    else:
-        base = v["seven_day"]["total_cost_yuan"]
-    for key in ORDER_42:
-        d = v[key]
-        rel = f"{(d['total_cost_yuan'] - base) / base * 100:+.2f}\\%"
-        out.append(f"    4-2，{NAME_CN_42[key]} & {fmt(d['normal_purchase_cost_yuan'])} & "
-                   f"{fmt(d['emergency_cost_yuan'])} & {fmt(d['total_cost_yuan'])} & {rel} \\\\")
+        q2n = hybrid["q2_no_adjust"]
+        base = q2n["total_yuan"]
+        out.append(f"    问题二基准（附件1 固定电价） & {fmt(q2n['contract_fee_yuan'])} & "
+                   f"{fmt(q2n['emergency_cost_yuan'])} & {fmt(base)} & -- \\\\")
+    if base is None:
+        base = cmp42["variants"]["seven_day"]["total_cost_yuan"]
+    if b42 is not None:
+        normal = sum(float(x.get("plan_cost", x.get("normal", 0.0))) for x in b42["detail"])
+        emg_c = b42["causal"]["total"] - normal
+        emg_a = cmp42["variants"]["seven_day"]["emergency_cost_yuan"]
+        out.append(f"    4-2 口径 A（严格按计划执行） & {fmt(normal)} & {fmt(emg_a)} & "
+                   f"{fmt(b42['official_A'])} & "
+                   f"{(b42['official_A'] - base) / base * 100:+.2f}\\% \\\\")
+        out.append(f"    \\textbf{{4-2 口径 B（储能日内滚动再调度，正式结果）}} & {fmt(normal)} & "
+                   f"{fmt(emg_c)} & {fmt(b42['causal']['total'])} & "
+                   f"{(b42['causal']['total'] - base) / base * 100:+.2f}\\% \\\\")
+        out.append(f"    4-2 口径 B（日内完全信息上界） & {fmt(normal)} & "
+                   f"{fmt(b42['oracle']['total'] - normal)} & {fmt(b42['oracle']['total'])} & "
+                   f"{(b42['oracle']['total'] - base) / base * 100:+.2f}\\% \\\\")
+    lb = cmp42["variants"]["seven_day"]["perfect_information_cost_yuan"]
     out.append(r"    \midrule")
-    lb = v["seven_day"]["perfect_information_cost_yuan"]
     out.append(f"    完全信息下界（已知真实电价/负荷/光伏） & -- & -- & {fmt(lb)} & "
                f"{(lb - base) / base * 100:+.2f}\\% \\\\")
+    out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
+    return "\n".join(out)
+
+
+def tex_table42_price(cmp42: dict, hybrid: dict | None = None) -> str:
+    """4-2 四种因果电价预测口径的全年费用（口径 A 下）。"""
+    v = cmp42["variants"]
+    base = hybrid["q2_no_adjust"]["total_yuan"] if hybrid is not None else v["seven_day"]["total_cost_yuan"]
+    out = [r"\begin{table}[H]", r"  \centering",
+           r"  \caption{问题四 4-2：四种因果电价预测口径的全年费用（口径 A，购电与源荷计划相同）}",
+           r"  \label{tab:q4-2-price}", r"  \small",
+           r"  \begin{tabular}{lrrrr}", r"    \toprule",
+           r"    电价预测口径 & 价格 MAE/(元·kWh$^{-1}$) & 正常购电费/元 & 紧急购电费/元 & 合计/元 \\",
+           r"    \midrule"]
+    for key in ORDER_42:
+        d = v[key]
+        out.append(f"    {NAME_CN_42[key]} & {d['price_mae_yuan_per_kwh']:.5f} & "
+                   f"{fmt(d['normal_purchase_cost_yuan'])} & {fmt(d['emergency_cost_yuan'])} & "
+                   f"{fmt(d['total_cost_yuan'])} \\\\")
     out += [r"    \bottomrule", r"  \end{tabular}", r"\end{table}", ""]
     return "\n".join(out)
 
@@ -134,8 +161,11 @@ def main() -> None:
         cmp42 = json.loads(sp42.read_text(encoding="utf-8"))
         hyb_path = root / "src" / "outputs" / "q3_hybrid_experiment.json"
         hybrid = json.loads(hyb_path.read_text(encoding="utf-8")) if hyb_path.exists() else None
+        b_path = root / "src" / "outputs" / "q4_2_B.json"
+        b42 = json.loads(b_path.read_text(encoding="utf-8")) if b_path.exists() else None
         out42 = tex_out.with_name("q4_2_tables.tex")
-        out42.write_text(tex_table42(cmp42, hybrid) + "\n", encoding="utf-8")
+        out42.write_text(tex_table42(cmp42, hybrid, b42) + "\n"
+                         + tex_table42_price(cmp42, hybrid) + "\n", encoding="utf-8")
         print(f"已写入 {out42}")
     for k in ORDER:
         d = sum_["variants"][k]

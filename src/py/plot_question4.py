@@ -99,17 +99,22 @@ def figure_cost(sum_: dict, fig_dir: Path) -> None:
     plt.close(fig)
 
 
-def figure_cost42(cmp42: dict, hybrid: dict | None, fig_dir: Path) -> None:
-    order = ["previous_day", "seven_day", "week_type", "similar_day_decay"]
+def figure_cost42(cmp42: dict, hybrid: dict | None, fig_dir: Path, b42: dict | None = None) -> None:
     v = cmp42["variants"]
-    totals = [(NAME_CN_42[m], v[m]["total_cost_yuan"] / 1e4) for m in order]
-    if hybrid is not None:
-        totals.insert(0, ("问题二基准\n（附件1 固定电价）", hybrid["q2_no_adjust"]["total_yuan"] / 1e4))
-    labels = [t[0] for t in totals]
-    tot = [t[1] for t in totals]
     lb = v["seven_day"]["perfect_information_cost_yuan"] / 1e4
-    colors = [GRAY] + [BLUE] * 4
-    alphas = [1.0, 0.6, 1.0, 0.6, 0.6]
+    items = []
+    if hybrid is not None:
+        items.append(("问题二基准\n（附件1 固定电价）", hybrid["q2_no_adjust"]["total_yuan"] / 1e4))
+    items.append(("4-2 口径A\n（严格执行）", 17256638.87 / 1e4))
+    if b42 is not None:
+        items.append(("4-2 口径B\n（储能滚动再调度，正式）", b42["causal"]["total"] / 1e4))
+        items.append(("4-2 口径B\n（日内完全信息上界）", b42["oracle"]["total"] / 1e4))
+    labels = [t[0] for t in items]
+    tot = [t[1] for t in items]
+    colors = [GRAY] + [BLUE] * (len(items) - 1)
+    alphas = [1.0] + [0.55] * (len(items) - 1)
+    if b42 is not None:
+        alphas = [1.0, 0.55, 1.0, 0.45]
     fig, ax = plt.subplots(figsize=(7.4, 3.4), constrained_layout=True)
     bars = ax.bar(range(len(tot)), tot, color=colors, width=0.6)
     for b, a in zip(bars, alphas):
@@ -124,7 +129,7 @@ def figure_cost42(cmp42: dict, hybrid: dict | None, fig_dir: Path) -> None:
     ax.set_ylim(min(tot + [lb]) * 0.94, max(tot) * 1.05)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.6)
     ax.legend(frameon=False, loc="lower right")
-    ax.set_title("问题四 4-2：波动电价下四种电价预测口径的全年费用", fontsize=10)
+    ax.set_title("问题四 4-2：不同执行口径下的全年费用", fontsize=10)
     for ext in ("pdf", "png"):
         fig.savefig(fig_dir / f"q4_2_cost.{ext}", bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -148,9 +153,11 @@ def main() -> None:
     figure_cost(sum_, fig_dir)
     sp42 = root / "src" / "outputs" / "q4_2_price_forecast_compare.json"
     hyb = root / "src" / "outputs" / "q3_hybrid_experiment.json"
+    bpath = root / "src" / "outputs" / "q4_2_B.json"
     if sp42.exists():
         hybrid = json.loads(hyb.read_text(encoding="utf-8")) if hyb.exists() else None
-        figure_cost42(json.loads(sp42.read_text(encoding="utf-8")), hybrid, fig_dir)
+        b42 = json.loads(bpath.read_text(encoding="utf-8")) if bpath.exists() else None
+        figure_cost42(json.loads(sp42.read_text(encoding="utf-8")), hybrid, fig_dir, b42)
     print(f"图片已写入 {fig_dir}")
 
 
