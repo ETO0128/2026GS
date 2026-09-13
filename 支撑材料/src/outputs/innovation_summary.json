@@ -1,0 +1,86 @@
+{
+  "decision_oriented_price_selection": {
+    "window": "2025-01-08--2025-01-31",
+    "criterion": "downstream cost primary; methods within 0.1% use price RMSE as tie-break",
+    "cost_indifference_band": 0.001,
+    "eligible_methods": [
+      "seven_day",
+      "week_type",
+      "similar_day_decay",
+      "expanding_mean"
+    ],
+    "selected_method": "seven_day",
+    "scores": {
+      "previous_day": {
+        "evaluated_days": 24,
+        "price_evaluated_days": 24,
+        "price_mae_yuan_per_kwh": 0.08482149884259259,
+        "price_rmse_yuan_per_kwh": 0.12662611840709334,
+        "price_bias_yuan_per_kwh": 0.008834461805555553,
+        "normal_purchase_cost_yuan": 1645545.365173013,
+        "emergency_cost_yuan": 42265.19405102088,
+        "emergency_purchase_kwh": 9104.206825833338,
+        "total_cost_yuan": 1687810.5592240337,
+        "perfect_information_cost_yuan": 1303178.5122205494,
+        "dispatch_regret_yuan": 384632.0470034844,
+        "constraint_violations": 0
+      },
+      "seven_day": {
+        "evaluated_days": 24,
+        "price_evaluated_days": 24,
+        "price_mae_yuan_per_kwh": 0.0806415591931217,
+        "price_rmse_yuan_per_kwh": 0.10291839123209665,
+        "price_bias_yuan_per_kwh": 0.005331349206349151,
+        "normal_purchase_cost_yuan": 1640695.088550477,
+        "emergency_cost_yuan": 42265.19405102088,
+        "emergency_purchase_kwh": 9104.20682583334,
+        "total_cost_yuan": 1682960.2826014978,
+        "perfect_information_cost_yuan": 1303178.5122205494,
+        "dispatch_regret_yuan": 379781.7703809487,
+        "constraint_violations": 0
+      },
+      "week_type": {
+        "evaluated_days": 24,
+        "price_evaluated_days": 24,
+        "price_mae_yuan_per_kwh": 0.07886718444155884,
+        "price_rmse_yuan_per_kwh": 0.10696987066502288,
+        "price_bias_yuan_per_kwh": 0.010171621651936498,
+        "normal_purchase_cost_yuan": 1640817.697960002,
+        "emergency_cost_yuan": 42265.19405102088,
+        "emergency_purchase_kwh": 9104.206825833338,
+        "total_cost_yuan": 1683082.892011023,
+        "perfect_information_cost_yuan": 1303178.5122205494,
+        "dispatch_regret_yuan": 379904.37979047373,
+        "constraint_violations": 0
+      },
+      "similar_day_decay": {
+        "evaluated_days": 24,
+        "price_evaluated_days": 24,
+        "price_mae_yuan_per_kwh": 0.08119588064268474,
+        "price_rmse_yuan_per_kwh": 0.11341592148881963,
+        "price_bias_yuan_per_kwh": 0.02168213606960234,
+        "normal_purchase_cost_yuan": 1641020.3498991674,
+        "emergency_cost_yuan": 42265.19405102088,
+        "emergency_purchase_kwh": 9104.20682583334,
+        "total_cost_yuan": 1683285.5439501882,
+        "perfect_information_cost_yuan": 1303178.5122205494,
+        "dispatch_regret_yuan": 380107.03172963887,
+        "constraint_violations": 0
+      },
+      "expanding_mean": {
+        "evaluated_days": 24,
+        "price_evaluated_days": 24,
+        "price_mae_yuan_per_kwh": 0.08146374489957493,
+        "price_rmse_yuan_per_kwh": 0.10603341623759902,
+        "price_bias_yuan_per_kwh": 0.009450336285800595,
+        "normal_purchase_cost_yuan": 1640668.1716144427,
+        "emergency_cost_yuan": 42265.19405102088,
+        "emergency_purchase_kwh": 9104.20682583334,
+        "total_cost_yuan": 1682933.3656654635,
+        "perfect_information_cost_yuan": 1303178.5122205494,
+        "dispatch_regret_yuan": 379754.85344491416,
+        "constraint_violations": 0
+      }
+    }
+  }
+}
