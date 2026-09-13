@@ -1,5 +1,8 @@
 C 题建模依据与参考文献（IEEE 格式）
-更新日期：2026-09-10
+更新日期：2026-09-13
+
+说明：本文件是建模依据与候选资料登记库，并非论文最终参考文献表；其中包括为已测试但
+未采用的方法和潜在改进方向准备的资料。论文参考文献表仅收录 main.tex 正文实际引用的文献。
 
 一、参数与公式的来源说明
 
@@ -41,7 +44,7 @@ C 题建模依据与参考文献（IEEE 格式）
     problems/C题/C题.pdf.
 
 [2] P. Joshi and C. Gokhale-Welch, “Fundamentals of Energy Storage,” National
-    Renewable Energy Laboratory, Golden, CO, USA, NREL/TP-6A40-84500,
+    Renewable Energy Laboratory, Golden, CO, USA, NREL/PR-5R00-84500,
     Nov. 2022. [Online]. Available: https://www.nrel.gov/docs/fy23osti/84500.pdf
     [Accessed: Sep. 10, 2026].
 
@@ -92,7 +95,8 @@ C 题建模依据与参考文献（IEEE 格式）
 三、问题二：预测、日前计划与不确定性调度
 
 [11] R. J. Hyndman and G. Athanasopoulos, “Time series cross-validation,”
-     in Forecasting: Principles and Practice, 3rd ed., §5.10. [Online].
+     in Forecasting: Principles and Practice, 3rd ed. Melbourne, Australia:
+     OTexts, 2021, §5.10. [Online].
      Available: https://otexts.com/fpp3/tscv.html [Accessed: Sep. 11, 2026].
 
 [12] P. Mandal, T. Senjyu, N. Urasaki, and T. Funabashi, “A neural network
