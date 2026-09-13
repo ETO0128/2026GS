@@ -1486,8 +1486,58 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
   \end{tabularx}
 \end{table}
 
-支撑材料压缩包保留上述完整源程序、程序生成的中间结果与图表数据，以及 AI 工具使用说明；
-文件和压缩包属性中不保留参赛队员姓名等个人信息。
+\clearpage
+\subsection*{支撑材料文件清单}
+
+提交的支撑材料压缩包共含 119 个文件。其目录结构如下；其中图表集中置于
+\texttt{src/figure/}，五个结果工作簿集中置于顶层 \texttt{附件5/}。
+
+\begin{verbatim}
+支撑材料/
+|-- README.md
+|-- src/
+|   |-- py/
+|   |-- data/
+|   |-- outputs/
+|   `-- figure/
+|-- 附件5/
+|-- 验证程序/
+|-- 参考资料/
+`-- 补充分析/
+\end{verbatim}
+
+\begin{table}[H]
+  \centering
+  \caption{支撑材料文件列表（按目录汇总）}
+  \small
+  \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.6cm}
+    >{\centering\arraybackslash}p{1.2cm}>{\raggedright\arraybackslash}X}
+    \toprule
+    目录 & 数量 & 文件及内容 \\
+    \midrule
+    根目录 & 1 & \texttt{README.md}：目录结构、运行环境、复现入口与数据边界说明 \\
+    \texttt{src/py/} & 49 & 46 个 Python 源程序、\texttt{README.md}、
+      \texttt{README\_question2.md} 与 \texttt{requirements.txt}；涵盖四问正式模型、
+      结果回填、制表、绘图、敏感性与对照实验 \\
+    \texttt{src/data/} & 2 & \texttt{question1\_summary.xlsx}、
+      \texttt{question2\_summary.xlsx} \\
+    \texttt{src/outputs/} & 28 & 14 个 JSON 机器可读结果、13 个 TXT 核验报告及
+      \texttt{q3\_improvement\_conclusion.md} \\
+    \texttt{src/figure/} & 14 & 正文实际使用的 PDF 流程示意图、调度曲线、
+      敏感性图和费用比较图 \\
+    \texttt{附件5/} & 5 & \texttt{result1.xlsx}、\texttt{result2.xlsx}、
+      \texttt{result3.xlsx}、\texttt{result4-2.xlsx}、\texttt{result4-3.xlsx} \\
+    \texttt{验证程序/} & 14 & 1 个结果工作簿审计程序与 13 个单元、集成及风险模型测试程序 \\
+    \texttt{参考资料/} & 4 & 正文参考文献索引，以及问题二、问题三和问题四的理论与验证记录 \\
+    \texttt{补充分析/} & 2 & 问题二条件残差与随机规划对照实验记录 \\
+    \midrule
+    合计 & 119 & 不含赛题提供的原始数据，不含缓存、临时日志和个人信息 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+上述清单依据定稿 ZIP 中的实际文件逐项统计。AI 工具使用声明位于参考文献之前，具体使用记录
+见附录 C；支撑材料文件和压缩包属性中不保留参赛队员姓名等个人信息。
 
 \clearpage
 \renewcommand{\thesubsection}{\Alph{section}.\arabic{subsection}}
