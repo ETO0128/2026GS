@@ -33,7 +33,6 @@
 逐日波动电价，建立由日前计划向滚动决策递进的统一模型。问题一采用\textbf{确定性线性规划
 与字典序优化}，在满足能量平衡及储能约束的同时排除非必要充放电循环，并结合套利阈值和
 容量--功率响应面解释储能的降本机理与配置价值。
-
 问题二提出\textbf{因果预测与时间衰减条件残差分位数}方法：以七日均值给出源荷点预测，
 再按曲线相似度和时间距离加权历史残差，以 80\% 分位数平衡计划备购与高价紧急购电风险。
 全年顺序回测表明，该方法较无条件风险修正具有更稳定的经济性，并保持跨日荷电状态
@@ -41,7 +40,6 @@
 在新光伏预报到达后冻结已执行轨迹、重算剩余时域，并区分严格继承与合同重构两种口径。
 结果识别出 6:00 和 12:00 为主要高价值更新节点；择优规则在不损失经济性的条件下减少了
 无效重订，而严格继承方案的改善尚未表现出稳定的统计优势。
-
 问题四采用\textbf{因果电价预测、实际电价结算与两日前瞻优化}，统一检验日前和日内策略
 在波动电价下的表现。结果表明，完美价格信息的边际价值较低，两日前瞻虽能稳定改善日前
 方案，但经济增益有限，改善源荷预测比继续增加价格信息更具优先级。敏感性分析进一步表明，
@@ -126,7 +124,8 @@ $+$ 条件分位数修正 $+$ 线性规划 $+$ 真实值结算”处理过量备
   \item 日前及日内决策只使用决策时刻已经发布的数据；当天真实负荷、真实光伏和真实
   波动电价仅用于事后结算。完全信息方案不参与正式决策，只作为费用下界或信息价值对照。
   \item 为排除线性规划的退化解，问题一、二在最低购电费不变时以充放电总量最小作为
-  第二级目标；问题三、四的场景模型则在主目标中加入 $10^{-7}\sum_t(c_t+d_t)$ 的破同分项。
+  第二级目标；问题三、四的场景模型则在主目标中加入
+  $\epsilon\sum_t(c_t^{\mathrm{ch}}+c_t^{\mathrm{dis}})$ 的破同分项，其中 $\epsilon=10^{-7}$。
   \item 问题一采用 $e_0=e_T=\SI{6000}{kWh}$；问题二以相邻日期连续传递的日初状态为
   初值，并设置 $e_T\ge\SI{6000}{kWh}$；问题三采用日周期边界。问题四的基准方案继承
   相应边界，跨日前瞻方案则允许中间日末状态动态变化，仅约束前瞻末端储备。附件中
@@ -143,26 +142,30 @@ $+$ 条件分位数修正 $+$ 线性规划 $+$ 真实值结算”处理过量备
     \toprule
     符号 & 含义 & 单位 \\
     \midrule
-    $t$ & 十分钟决策时段索引 & -- \\
+    $t$ & 十分钟决策时段索引，$t=0,\ldots,T-1$ & -- \\
     $d$ & 日期索引 & -- \\
-    $s$ & 净需求残差场景索引 & -- \\
+    $j$ & 历史日或由历史日形成的残差场景索引 & -- \\
+    $s$ & 日内滚动子问题的残差场景索引 & -- \\
     $\tau$ & 日内预测发布与调整时刻 & min \\
-    $p_t$ & 时段 $t$ 的外网电价 & 元/kWh \\
+    $T,K,S$ & 单日时段数、相似历史日数、日内代表场景数 & -- \\
+    $p_t$ & 固定日内电价；省略日期下标时的简写 & 元/kWh \\
+    $\widehat p_{d,t},p_{d,t}^{\mathrm{act}}$ & 日期 $d$、时段 $t$ 的预测电价和实际电价 & 元/kWh \\
     $L_t$ & 时段 $t$ 的小区负荷功率 & \si{kW} \\
     $P_t^{\mathrm{pv}}$ & 时段 $t$ 的光伏预测功率 & \si{kW} \\
     $g_t$ & 外部电网计划购电量 & \si{kWh} \\
     $q_{d,t}$ & 风险修正后的净需求电量 & \si{kWh} \\
-    $c_t$ & 储能充电量 & \si{kWh} \\
-    $d_t$ & 储能放电量 & \si{kWh} \\
+    $c_t^{\mathrm{ch}},c_t^{\mathrm{dis}}$ & 储能充电量和放电量 & \si{kWh} \\
     $e_t$ & 储能系统的储电量 & \si{kWh} \\
     $w_t$ & 无法消纳的弃光量 & \si{kWh} \\
     $D_{d,t}$ & 日期 $d$、时段 $t$ 的净需求电量 & \si{kWh} \\
     $h_{d,t}$ & 紧急购电量 & \si{kWh} \\
     $r_{s,t}$ & 场景 $s$ 下的剩余能量 & \si{kWh} \\
+    $\mathcal C_d,\mathcal S$ & 日期 $d$ 的相似历史日集合、日内残差场景集合 & -- \\
+    $\mathcal X(\cdot)$ & 给定信息与初始 SOC 时满足物理约束的调度可行集 & -- \\
     $\mathcal F_{d,\tau}$ & 日期 $d$ 在时刻 $\tau$ 可用的信息集 & -- \\
     $\pi_{d,j}$ & 历史残差场景 $j$ 的归一化概率 & -- \\
     $\lambda$ & 历史样本的时间指数衰减系数 & -- \\
-    $\eta_c,\eta_d$ & 储能充电效率和放电效率 & -- \\
+    $\eta_{\mathrm{ch}},\eta_{\mathrm{dis}}$ & 储能充电效率和放电效率 & -- \\
     $\Delta t$ & 单个决策时段的长度 & \si{h} \\
     \bottomrule
   \end{tabularx}
@@ -223,17 +226,18 @@ $\varepsilon^N_{j,t}=L_{j,t}-P^{\mathrm{pv}}_{j,t}-\widehat N_{j,t}$。条件残
 中，按照历史点预测曲线与 $\widehat N_{d,1:T}$ 的距离选取 $K$ 个相似状态日，并定义
 权重
 \begin{equation}
-  \omega_{d,j}=\frac{s_{d,j}\lambda^{d-j}}
-  {\sum_{k\in C_d}s_{d,k}\lambda^{d-k}},
-  \qquad j\in C_d,
+  \omega_{d,j}=\frac{\rho_{d,j}\lambda^{d-j}}
+  {\sum_{k\in\mathcal C_d}\rho_{d,k}\lambda^{d-k}},
+  \qquad j\in\mathcal C_d,
   \label{eq:q2-residual-weight}
 \end{equation}
-其中 $s_{d,j}$ 为曲线相似度，$\lambda^{d-j}$ 用于降低较早残差的影响。指数加权分位数
+其中 $\rho_{d,j}$ 为曲线相似度，$\lambda^{d-j}$ 用于降低较早残差的影响，且
+$\mathcal C_d$ 表示选出的 $K$ 个相似历史日。指数加权分位数
 能够适应分布随时间变化的预测问题\cite{taylor2007}。于是风险修正净负荷为
 \begin{equation}
   \widetilde q_{d,t}=\widehat N_{d,t}
-  +\inf\left\{x:\sum_{j\in C_d}\omega_{d,j}
-  \mathbb I(\varepsilon^N_{j,t}\leq x)\geq 0.8\right\}.
+  +\inf\left\{z:\sum_{j\in\mathcal C_d}\omega_{d,j}
+  \mathbb I(\varepsilon^N_{j,t}\leq z)\geq 0.8\right\}.
   \label{eq:q2-conditional-quantile}
 \end{equation}
 点预测通过 $\widehat N_{d,t}$ 进入计划，历史残差刻画不确定性。1 月滚动验证从
@@ -252,8 +256,8 @@ $K\in\{14,28,42\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95
 
 \subsection{模型建立}
 
-令 $g_t,c_t,d_t,w_t$ 分别表示时段 $t$ 的计划购电量、母线侧充电量、母线侧
-放电量和弃光量，$e_t$ 表示时段 $t$ 起始时刻的储电量。以全天计划购电费用最小为
+令 $g_t,c_t^{\mathrm{ch}},c_t^{\mathrm{dis}},w_t$ 分别表示时段 $t$ 的计划购电量、母线侧
+充电量、母线侧放电量和弃光量，$e_t$ 表示时段 $t$ 起始时刻的储电量。以全天计划购电费用最小为
 优化目标，即
 \begin{equation}
   \min C=\sum_{t=0}^{T-1}p_tg_t.
@@ -263,14 +267,15 @@ $K\in\{14,28,42\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95
 任一时段内，外网购电、光伏发电和储能放电构成能量输入，负荷用电、储能充电和弃光
 构成能量输出，由母线侧能量守恒可得
 \begin{equation}
-  g_t+v_t+d_t=l_t+c_t+w_t,
+  g_t+v_t+c_t^{\mathrm{dis}}=l_t+c_t^{\mathrm{ch}}+w_t,
   \qquad t=0,1,\ldots,T-1.
   \label{eq:q1-balance}
 \end{equation}
-由于 $c_t$ 和 $d_t$ 均在交流母线侧计量，储能状态转移方程为
+由于 $c_t^{\mathrm{ch}}$ 和 $c_t^{\mathrm{dis}}$ 均在交流母线侧计量，储能状态转移方程为
 \begin{equation}
-  e_{t+1}=e_t+\eta_c c_t-\frac{d_t}{\eta_d},
-  \qquad \eta_c=\eta_d=0.9.
+  e_{t+1}=e_t+\eta_{\mathrm{ch}}c_t^{\mathrm{ch}}
+  -\frac{c_t^{\mathrm{dis}}}{\eta_{\mathrm{dis}}},
+  \qquad \eta_{\mathrm{ch}}=\eta_{\mathrm{dis}}=0.9.
   \label{eq:q1-soc}
 \end{equation}
 该效率处理与储能调度研究中常用的离散 SOC 方程一致
@@ -278,7 +283,7 @@ $K\in\{14,28,42\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95
 弃光约束分别为
 \begin{align}
   \SI{1200}{kWh}&\le e_t\le\SI{10800}{kWh}, \label{eq:q1-soc-bound}\\
-  0&\le c_t,d_t\le\SI{833.3333}{kWh}, \label{eq:q1-power-bound}\\
+  0&\le c_t^{\mathrm{ch}},c_t^{\mathrm{dis}}\le\SI{833.3333}{kWh}, \label{eq:q1-power-bound}\\
   g_t&\ge 0,\qquad 0\le w_t\le v_t. \label{eq:q1-flow-bound}
 \end{align}
 其中，$g_t\ge0$ 表示微网不向外部电网反向送电。储能的周期边界条件为
@@ -296,7 +301,7 @@ $K\in\{14,28,42\}$、$\lambda\in\{0.90,0.95,0.98\}$ 中选得 $K=42,\lambda=0.95
 两阶段字典序优化处理等价最优解：第一阶段求得最低购电费用 $C^*$；第二阶段固定
 $C=C^*$，进一步求解
 \begin{equation}
-  \min \sum_{t=0}^{T-1}(c_t+d_t).
+  \min \sum_{t=0}^{T-1}(c_t^{\mathrm{ch}}+c_t^{\mathrm{dis}}).
   \label{eq:q1-tiebreak}
 \end{equation}
 第二阶段不改变最优费用，仅从等价解中排除非必要循环；求解后复核平衡与 SOC 残差、
@@ -373,12 +378,14 @@ $1.89\times10^{-11}$ kWh，最大 SOC 递推残差为 $9.09\times10^{-13}$ kWh�
 优化轨迹在高价段放电、低价及光伏富余段充电；SOC 多次触及边界，说明容量约束实际生效，
 费用下降并非来自放松物理条件。全部 144 个时段已写入正式结果表。
 
-进一步考察储能套利的成立条件。若在低价时段以价格 $p_{\mathrm{c}}$ 购入 $x$ kWh 并充电，
-考虑充、放电效率后，高价时段可向母线释放 $\eta_c\eta_d x$ kWh。忽略容量和功率约束时，
+进一步考察储能套利的成立条件。若在低价时段以价格 $p_{\mathrm{ch}}$ 购入 $\Delta E$ kWh 并充电，
+考虑充、放电效率后，高价时段可向母线释放
+$\eta_{\mathrm{ch}}\eta_{\mathrm{dis}}\Delta E$ kWh。忽略容量和功率约束时，
 该次跨时段转移有利可图的必要条件为
 \begin{equation}
-  p_{\mathrm{d}}\eta_c\eta_d>p_{\mathrm{c}},\qquad
-  \frac{p_{\mathrm{d}}}{p_{\mathrm{c}}}>\frac{1}{\eta_c\eta_d}.
+  p_{\mathrm{dis}}\eta_{\mathrm{ch}}\eta_{\mathrm{dis}}>p_{\mathrm{ch}},\qquad
+  \frac{p_{\mathrm{dis}}}{p_{\mathrm{ch}}}>
+  \frac{1}{\eta_{\mathrm{ch}}\eta_{\mathrm{dis}}}.
   \label{eq:q1-arbitrage-threshold}
 \end{equation}
 本题往返效率为 0.81，临界价格比 1.2346，而实际峰谷比为 3.7576，故套利成立；具体电量
@@ -446,8 +453,8 @@ $q_{d,t}^{-}=\max(-q_{d,t},0)$ 分别表示等效负荷与等效光伏，日前�
   \label{eq:q2-plan-objective}
 \end{equation}
 \begin{equation}
-  g_{d,t}+q_{d,t}^{-}+d_{d,t}
-  =q_{d,t}^{+}+c_{d,t}+w_{d,t},
+  g_{d,t}+q_{d,t}^{-}+c_{d,t}^{\mathrm{dis}}
+  =q_{d,t}^{+}+c_{d,t}^{\mathrm{ch}}+w_{d,t},
   \label{eq:q2-plan-balance}
 \end{equation}
 并满足式~\eqref{eq:q1-soc}--\eqref{eq:q1-flow-bound} 所示储能约束。每日初始状态满足
@@ -460,12 +467,13 @@ $e_{d,T}\ge\SI{6000}{kWh}$，并通过不同终端储备水平的敏感性分析
 
 全天计划购电量和储能充放电量在 0:00 同时确定。真实运行时保持二者不变，令
 \begin{equation}
-  r_{d,t}=l_{d,t}+c_{d,t}-v_{d,t}-d_{d,t}-g_{d,t},
+  \Delta_{d,t}^{\mathrm{bal}}=l_{d,t}+c_{d,t}^{\mathrm{ch}}-v_{d,t}
+  -c_{d,t}^{\mathrm{dis}}-g_{d,t},
 \end{equation}
 则紧急购电量与弃电量分别为
 \begin{equation}
-  h_{d,t}=\max(r_{d,t},0),\qquad
-  w^{\mathrm{act}}_{d,t}=\max(-r_{d,t},0).
+  h_{d,t}=\max(\Delta_{d,t}^{\mathrm{bal}},0),\qquad
+  w^{\mathrm{act}}_{d,t}=\max(-\Delta_{d,t}^{\mathrm{bal}},0).
   \label{eq:q2-settlement}
 \end{equation}
 全年实际费用为
@@ -495,20 +503,21 @@ $\varepsilon^{\mathrm{pv}}_{j,1:T}$ 作为一个不可拆分的残差对，并�
   +\varepsilon^{\mathrm{pv}}_{j,t}).
   \label{eq:q2-joint-scenario}
 \end{equation}
-候选集 $C_d$ 先按季节和星期类型筛选，再由完整日曲线距离计算相似度 $s_{d,j}$；场景概率为
+相似历史日集合 $\mathcal C_d$ 先按季节和星期类型筛选，再由完整日曲线距离计算相似度
+$\rho_{d,j}$；场景概率为
 \begin{equation}
-  \pi_{d,j}=\frac{s_{d,j}\lambda^{d-j}}
-  {\sum_{k\in C_d}s_{d,k}\lambda^{d-k}}.
+  \pi_{d,j}=\frac{\rho_{d,j}\lambda^{d-j}}
+  {\sum_{k\in\mathcal C_d}\rho_{d,k}\lambda^{d-k}}.
   \label{eq:q2-scenario-weight}
 \end{equation}
 其中 $0<\lambda\leq1$，较小的 $\lambda$ 更强调近期样本。
 
 两阶段模型的第一阶段在场景揭示前统一确定计划购电量 $g_{d,t}$、储能充放电量
-$c_{d,t},d_{d,t}$ 及 SOC 轨迹；第二阶段在各场景下分别计算紧急购电量
+$c_{d,t}^{\mathrm{ch}},c_{d,t}^{\mathrm{dis}}$ 及 SOC 轨迹；第二阶段在各场景下分别计算紧急购电量
 $h_{d,t}^{(j)}$ 与剩余电量 $w_{d,t}^{(j)}$。在各场景均满足功率平衡的条件下，目标为
 \begin{equation}
   \min\sum_t p_tg_{d,t}
-  +5\sum_{j\in C_d}\pi_{d,j}\sum_t p_th_{d,t}^{(j)}.
+  +5\sum_{j\in\mathcal C_d}\pi_{d,j}\sum_t p_th_{d,t}^{(j)}.
   \label{eq:q2-stochastic-objective}
 \end{equation}
 场景数和衰减系数仅由 1 月顺序费用校准，最终取 $K=28,\lambda=0.90$；评价期不再调参。
@@ -698,12 +707,12 @@ $[\num{56.65},\num{420.64}]$ 元，说明改善并非由少数极端日造成。
 附件~3 在每天 0:00、6:00、12:00、18:00 各发布一次未来 24 小时的整点光伏发电功率预报
 （kW）。记发布时刻为 $\tau$（分钟，$\tau\in\{0,360,720,1080\}$），第 $o$ 个预报小时
 （$o=1,\dots,24$）给出时段 $[\tau+60(o-1),\,\tau+60o)$ 的平均功率。要把整点预报接到
-十分钟时段上，只需让时段 $j$（即 $[10j,10j+10)$ 分钟）落在第
-$o_j=\lfloor(10j-\tau)/60\rfloor+1$ 个预报小时内，再乘以时段长度 $\Delta t=1/6$ h：
+十分钟时段上，只需让时段 $t$（即 $[10t,10t+10)$ 分钟）落在第
+$o_t=\lfloor(10t-\tau)/60\rfloor+1$ 个预报小时内，再乘以时段长度 $\Delta t=1/6$ h：
 
 \begin{equation}
-  \hat v_j(\tau)=\hat P_{\tau}(o_j)\,\Delta t,\qquad
-  o_j=\Big\lfloor\frac{10j-\tau}{60}\Big\rfloor+1,\qquad j\ge \tau/10 .
+  \widehat v_t(\tau)=\widehat P_{\tau}(o_t)\,\Delta t,\qquad
+  o_t=\Big\lfloor\frac{10t-\tau}{60}\Big\rfloor+1,\qquad t\ge \tau/10 .
   \label{eq:q3-align}
 \end{equation}
 
@@ -766,33 +775,36 @@ $o_j=\lfloor(10j-\tau)/60\rfloor+1$ 个预报小时内，再乘以时段长度 $
 
 在节点 $\tau$，已执行时段 $[0,\tau)$ 的购电量与充放电量已经发生、不可更改，储电量
 $e_{\tau/10}$ 由已执行轨迹唯一确定；模型只需对剩余时段 $[\,\tau,24{:}00)$ 重新优化
-$(g_j,c_j,d_j,w_j,e_j)$。设 0:00 制定的计划购电量为 $g^{\mathrm{plan}}_j$、滚动调整后的
-最终购电量为 $g^{\mathrm{adj}}_j$，则按题面规则，时段 $j$ 的结算购电费为
+$(g_t,c_t^{\mathrm{ch}},c_t^{\mathrm{dis}},w_t,e_t)$。设 0:00 制定的计划购电量为
+$g^{\mathrm{plan}}_t$、滚动调整后的最终购电量为 $g^{\mathrm{adj}}_t$，则按题面规则，
+时段 $t$ 的结算购电费为
 
 \begin{equation}
-  \mathrm{fee}_j=p_j\min\big(g^{\mathrm{plan}}_j,g^{\mathrm{adj}}_j\big)
-  +0.5\,p_j\big(g^{\mathrm{plan}}_j-g^{\mathrm{adj}}_j\big)^{+}
-  +1.5\,p_j\big(g^{\mathrm{adj}}_j-g^{\mathrm{plan}}_j\big)^{+}.
+  \mathrm{fee}_t=p_t\min\big(g^{\mathrm{plan}}_t,g^{\mathrm{adj}}_t\big)
+  +0.5\,p_t\big(g^{\mathrm{plan}}_t-g^{\mathrm{adj}}_t\big)^{+}
+  +1.5\,p_t\big(g^{\mathrm{adj}}_t-g^{\mathrm{plan}}_t\big)^{+}.
   \label{eq:q3-fee}
 \end{equation}
 
 式~\eqref{eq:q3-fee} 同时计入向下调整的 50\% 违约费和向上调整的 1.5 倍追加费；当
-$g^{\mathrm{adj}}_j=g^{\mathrm{plan}}_j$ 时退化为原计划购电费，数值交叉校验误差为
+$g^{\mathrm{adj}}_t=g^{\mathrm{plan}}_t$ 时退化为原计划购电费，数值交叉校验误差为
 $4.55\times10^{-13}$ 元。
 
-设剩余时段净需求场景为 $N_{s,j}$，概率为 $\pi_s$。按照滚动随机规划及两阶段一致性原则
+记 $\mathcal S=\{1,\ldots,S\}$ 为日内滚动子问题的代表残差场景集合，场景 $s$ 的
+剩余时段净需求为 $N_{s,t}$、概率为 $\pi_s$。按照滚动随机规划及两阶段一致性原则
 \cite{silvente2015,birge2011}，购电与储能动作在场景揭示前保持共同，并在每个场景下
-分别配置紧急购电 $h_{s,j}$ 和剩余能量 $r_{s,j}$，节点子问题为
+分别配置紧急购电 $h_{s,t}$ 和剩余能量 $r_{s,t}$，节点子问题为
 \begin{align}
- g_j+d_j-c_j+h_{s,j}-r_{s,j}&=N_{s,j}, &&s\in\mathcal S,\ j\ge\tau/10,
+ g_t+c_t^{\mathrm{dis}}-c_t^{\mathrm{ch}}+h_{s,t}-r_{s,t}
+ &=N_{s,t}, &&s\in\mathcal S,\ t\ge\tau/10,
  \label{eq:q3-scenario-balance}\\
- \min\quad \sum_j\mathrm{fee}_j+5\sum_s\pi_s\sum_jp_jh_{s,j}
- &+\epsilon\sum_j(c_j+d_j). \label{eq:q3-risk-lp}
+ \min\quad \sum_t\mathrm{fee}_t+5\sum_{s\in\mathcal S}\pi_s\sum_tp_th_{s,t}
+ &+\epsilon\sum_t(c_t^{\mathrm{ch}}+c_t^{\mathrm{dis}}). \label{eq:q3-risk-lp}
 \end{align}
 并施加式~\eqref{eq:q1-soc} 的状态递推、容量与功率边界及日末状态约束。0:00 制订
-合同时，式~\eqref{eq:q3-risk-lp} 的第一项改为 $\sum_jp_jg_j$。式
+合同时，式~\eqref{eq:q3-risk-lp} 的第一项改为 $\sum_tp_tg_t$。式
 \eqref{eq:q3-scenario-balance} 不再以点预测钉住计划供给：高需求可由提前购电对冲，低需求
-由 $r_{s,j}$ 吸收。在“预测 100、场景 200、五倍补购”的单时段检验中，模型会提前购买 200，
+由 $r_{s,t}$ 吸收。在“预测 100、场景 200、五倍补购”的单时段检验中，模型会提前购买 200，
 验证了可行域的经济性。
 
 购电与储能动作在场景揭示前保持共同，因而不会针对事后已知的场景分别制订计划；只有紧急
@@ -982,28 +994,32 @@ $[\num{296112.43},\num{456453.16}]$ 元，完全位于零以上，说明滚动�
 问题四日前方案以条件残差分位数修正净需求，求解固定计划后按真实数据结算；日内方案则
 在新预报到达时冻结已执行动作、重解剩余时域\cite{parisio2016,silvente2015}。
 
-对日前方案，记 $\mathcal F_{d,0}$ 为第 $d$ 日 0:00 可用的信息集，$x_d=(g,c^{\rm ch},c^{\rm dis},e)$ 为据此
-确定且全天固定执行的购电与储能计划，$\widetilde D_{d,t}^{(0.8)}$ 为仅由历史点预测与
-条件残差得到的 80\% 风险修正净需求。正式求解口径为
+对日前方案，记 $\mathcal F_{d,0}$ 为第 $d$ 日 0:00 可用的信息集，
+$x_d=(g,c^{\mathrm{ch}},c^{\mathrm{dis}},e,w)$ 为据此确定且全天固定执行的购电与储能计划，
+$\widetilde D_{d,t}^{(0.8)}$ 为仅由历史点预测与条件残差得到的 80\% 风险修正净需求。
+记 $\mathcal X(e^{\mathrm{init}},\mathcal D)$ 为以 $e^{\mathrm{init}}$ 为初始储电量、对净需求描述
+$\mathcal D$ 满足式~\eqref{eq:q1-balance}--\eqref{eq:q1-flow-bound} 的调度可行集。正式求解口径为
 \begin{equation}
-  x_d^*=\arg\min_{x_d\in\mathcal X(E_{d,0},\widetilde D_d^{(0.8)})}
+  x_d^*=\arg\min_{x_d\in\mathcal X(e_{d,0},\widetilde D_d^{(0.8)})}
   \sum_t \widehat p_{d,t}g_{d,t},
   \label{eq:q4-causal-plan}
 \end{equation}
 其中 $\widehat p_{d,t}$ 为决策日前可得的价格预测。真实源荷和价格实现后不再改变
 $x_d^*$，只按
 \begin{equation}
-  u_{d,t}=\max\!\left(D_{d,t}^{\mathrm{act}}+c_{d,t}^*-d_{d,t}^*-g_{d,t}^*,0\right),
+  h_{d,t}^{\mathrm{act}}=\max\!\left(D_{d,t}^{\mathrm{act}}
+  +c_{d,t}^{\mathrm{ch},*}-c_{d,t}^{\mathrm{dis},*}-g_{d,t}^*,0\right),
   \qquad
   C_d^{\mathrm{act}}=\sum_t p_{d,t}^{\mathrm{act}}g_{d,t}^*
-  +5\sum_t p_{d,t}^{\mathrm{act}}u_{d,t}
+  +5\sum_t p_{d,t}^{\mathrm{act}}h_{d,t}^{\mathrm{act}}
   \label{eq:q4-settlement}
 \end{equation}
 结算。紧急购电是样本外执行结果，而非式~\eqref{eq:q4-causal-plan} 的显式补救变量。日内方案在
-$\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和当前 SOC 固定，求解
+$\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和当前 SOC 固定。
+令 $\mathcal D_{d,\tau}$ 为信息集 $\mathcal F_{d,\tau}$ 生成的剩余时域净需求场景族，求解
 \begin{equation}
- x^*_{d,\tau}=\arg\min_{x\in\mathcal X(E_{d,\tau})}
- \left\{C_{\mathrm{adj}}(x;x_{d,0},\hat p_d)
+ x^*_{d,\tau}=\arg\min_{x\in\mathcal X(e_{d,\tau},\mathcal D_{d,\tau})}
+ \left\{C_{\mathrm{adj}}(x;x_d^*,\widehat p_d)
  +\mathbb E[C_{\mathrm{emg}}\mid\mathcal F_{d,\tau}]\right\}.
  \label{eq:q4-receding-horizon}
 \end{equation}
@@ -1064,7 +1080,7 @@ $\tau\in\{6{:}00,12{:}00,18{:}00\}$ 获得新预报后，把已执行轨迹和�
 逐日固定终端忽略了日末电量的次日价值，故在第 $d$ 日 0:00 仅用历史信息预测今、明两日并联合求解
 \begin{equation}
  \min_{x_{d:d+1}}\sum_{\delta=0}^{1}\sum_t
- \widehat p_{d+\delta,t}q_{d+\delta,t},\qquad
+ \widehat p_{d+\delta,t}g_{d+\delta,t},\qquad
  e_{d+1,T}\ge6000\ \mathrm{kWh},
  \label{eq:q4-two-day}
 \end{equation}
@@ -1230,7 +1246,7 @@ $[\num{296112.43},\num{456453.16}]$ 元。完美价格信息收益不足 1\%，�
 
 \textbf{SOC 终端价值。}第四问的两日前瞻已证明动态日末状态具有稳定但有限的收益；若获得
 更多年份数据，可借鉴滚动预测下的参数化成本函数近似\cite{ghadimi2024}，以因果分段函数
-$\Phi_d(E_{d,T})$ 表示更长时域的库存价值。
+$\Phi_d(e_{d,T})$ 表示更长时域的库存价值。
 
 \textbf{容量--功率联合配置。}单因素分析无法识别设备参数交互，故进一步在容量倍率
 $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算问题一。由
@@ -1372,10 +1388,11 @@ $0.6\sim1.4$ 与功率倍率 $0.5\sim1.5$ 的 $5\times5$ 网格上逐点重算�
   \KwIn{各时段电价、负荷与光伏电量，储能容量、功率、效率及首末状态约束}
   \KwOut{购电、充电、放电、弃光和储电量序列}
   检查输入序列长度、非负性及储能边界的合法性\;
-  建立变量 $g_t,c_t,d_t,w_t,e_t$，写入能量平衡和 SOC 状态转移等式\;
+  建立变量 $g_t,c_t^{\mathrm{ch}},c_t^{\mathrm{dis}},w_t,e_t$，写入能量平衡和 SOC 状态转移等式\;
   设置购电、充放电、弃光、容量及首末状态的上下界\;
   求解 $\min \sum_t p_tg_t$，记最低购电费用为 $C^*$\;
-  增加 $\sum_t p_tg_t\le C^*+\varepsilon$，再求解 $\min \sum_t(c_t+d_t)$\;
+  增加 $\sum_t p_tg_t\le C^*+\varepsilon$，再求解
+  $\min \sum_t(c_t^{\mathrm{ch}}+c_t^{\mathrm{dis}})$\;
   \If{能量平衡、SOC 递推或变量边界的残差超限}{
     停止并报告调度结果不可行\;
   }
