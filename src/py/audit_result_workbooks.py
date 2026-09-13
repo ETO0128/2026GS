@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 import q2_model as q2
 
 
-EXPECTED_FONT = ("宋体", 10.0)
+EXPECTED_FONT = ("宋体", 10.0, None, None, None)
 FILES = ("result1.xlsx", "result2.xlsx", "result3.xlsx", "result4-2.xlsx", "result4-3.xlsx")
 
 
@@ -21,7 +21,7 @@ def audit(path: Path) -> list[str]:
     wb = load_workbook(path, data_only=False, read_only=False)
     messages: list[str] = []
     for ws in wb.worksheets:
-        styles: Counter[tuple[str | None, float | None]] = Counter()
+        styles: Counter[tuple[str | None, float | None, str | None, float | None, int | None]] = Counter()
         formula_count = 0
         populated = 0
         for row in ws.iter_rows():
@@ -29,7 +29,13 @@ def audit(path: Path) -> list[str]:
                 if cell.value is None:
                     continue
                 populated += 1
-                styles[(cell.font.name, float(cell.font.sz) if cell.font.sz else None)] += 1
+                styles[(
+                    cell.font.name,
+                    float(cell.font.sz) if cell.font.sz else None,
+                    cell.font.scheme,
+                    float(cell.font.family) if cell.font.family is not None else None,
+                    int(cell.font.charset) if cell.font.charset is not None else None,
+                )] += 1
                 if isinstance(cell.value, str) and cell.value.startswith("="):
                     formula_count += 1
         bad = sum(count for style, count in styles.items() if style != EXPECTED_FONT)

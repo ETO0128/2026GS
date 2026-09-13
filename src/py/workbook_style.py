@@ -14,16 +14,17 @@ RESULT_FONT_SIZE = 10.0
 
 
 def normalize_populated_fonts(workbook) -> None:
-    """只统一非空单元格的字体名称和字号，保留粗体、颜色等其他属性。"""
+    """统一已用区域字体，并清除会让 Excel 回退到 Calibri 的主题字体属性。"""
 
     for worksheet in workbook.worksheets:
         for row in worksheet.iter_rows():
             for cell in row:
-                if cell.value is None:
-                    continue
                 font = copy.copy(cell.font)
                 font.name = RESULT_FONT_NAME
                 font.sz = RESULT_FONT_SIZE
+                font.scheme = None
+                font.family = None
+                font.charset = None
                 cell.font = font
 
 
